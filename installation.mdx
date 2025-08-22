@@ -1,0 +1,440 @@
+---
+title: Installation Guide
+description: Detailed installation instructions for the 04Scapes engine across different platforms
+---
+
+# Installation Guide
+
+This guide provides comprehensive installation instructions for setting up the 04Scapes engine on Windows, macOS, and Linux systems.
+
+## System Requirements
+
+### Minimum Requirements
+- **CPU**: 2-core processor (Intel i5 or AMD equivalent)
+- **RAM**: 4GB minimum, 8GB recommended
+- **Storage**: 2GB available space
+- **OS**: Windows 10+, macOS 10.15+, or Linux (Ubuntu 18.04+)
+
+### Software Dependencies
+- **Node.js**: Version 22.0+ (LTS recommended)
+- **Java**: JDK 17+ (for cache tools and client)
+- **Git**: For source control (optional but recommended)
+
+## Platform-Specific Installation
+
+<Tabs>
+  <Tab title="Windows">
+    ### Windows Installation
+
+    <Steps>
+      <Step title="Install Node.js">
+        1. Download the Windows installer from [nodejs.org](https://nodejs.org/)
+        2. Run the installer and follow the setup wizard
+        3. Ensure "Add to PATH" is checked during installation
+        4. Verify installation:
+        ```bash
+        node --version
+        npm --version
+        ```
+      </Step>
+
+      <Step title="Install Java JDK 17+">
+        1. Download from [Eclipse Adoptium](https://adoptium.net/)
+        2. Choose "Temurin 17 LTS" for Windows x64
+        3. Run the installer with default settings
+        4. Verify installation:
+        ```bash
+        java -version
+        javac -version
+        ```
+      </Step>
+
+      <Step title="Install Git (Optional)">
+        1. Download from [git-scm.com](https://git-scm.com/download/win)
+        2. Run installer with recommended settings
+        3. Choose "Git from the command line and also from 3rd-party software"
+      </Step>
+
+      <Step title="Download 04Scapes Engine">
+        **Option A: Using Git**
+        ```bash
+        git clone https://github.com/2004scape/Server.git 04scapes-engine
+        cd 04scapes-engine
+        ```
+
+        **Option B: Download ZIP**
+        1. Go to [GitHub repository](https://github.com/2004scape/Server)
+        2. Click "Code" → "Download ZIP"
+        3. Extract to desired location
+      </Step>
+
+      <Step title="Install Dependencies">
+        Open Command Prompt or PowerShell in the project directory:
+        ```bash
+        npm install
+        ```
+        
+        Or if you prefer Bun:
+        ```bash
+        npm install -g bun
+        bun install
+        ```
+      </Step>
+
+      <Step title="Initial Setup">
+        Run the quickstart script:
+        ```bash
+        quickstart.bat
+        ```
+        
+        Follow the prompts to:
+        - Configure database settings
+        - Set up admin account
+        - Generate RSA keys
+        - Pack initial cache
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="macOS">
+    ### macOS Installation
+
+    <Steps>
+      <Step title="Install Homebrew (Recommended)">
+        Install Homebrew package manager:
+        ```bash
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        ```
+      </Step>
+
+      <Step title="Install Dependencies via Homebrew">
+        ```bash
+        # Install Node.js
+        brew install node@22
+        
+        # Install Java
+        brew install openjdk@17
+        
+        # Install Git
+        brew install git
+        ```
+      </Step>
+
+      <Step title="Configure Java Path">
+        Add Java to your shell profile:
+        ```bash
+        echo 'export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"' >> ~/.zshrc
+        source ~/.zshrc
+        ```
+      </Step>
+
+      <Step title="Clone Repository">
+        ```bash
+        git clone https://github.com/2004scape/Server.git 04scapes-engine
+        cd 04scapes-engine
+        ```
+      </Step>
+
+      <Step title="Install Project Dependencies">
+        ```bash
+        npm install
+        # or use bun
+        npm install -g bun && bun install
+        ```
+      </Step>
+
+      <Step title="Run Setup">
+        ```bash
+        chmod +x quickstart.sh
+        ./quickstart.sh
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Linux">
+    ### Linux Installation (Ubuntu/Debian)
+
+    <Steps>
+      <Step title="Update Package Index">
+        ```bash
+        sudo apt update
+        sudo apt upgrade -y
+        ```
+      </Step>
+
+      <Step title="Install Node.js 22">
+        ```bash
+        # Add NodeSource repository
+        curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+        
+        # Install Node.js
+        sudo apt install -y nodejs
+        
+        # Verify installation
+        node --version
+        npm --version
+        ```
+      </Step>
+
+      <Step title="Install Java JDK 17">
+        ```bash
+        # Install OpenJDK 17
+        sudo apt install -y openjdk-17-jdk
+        
+        # Verify installation
+        java -version
+        javac -version
+        ```
+      </Step>
+
+      <Step title="Install Additional Dependencies">
+        ```bash
+        # Install Git and build tools
+        sudo apt install -y git build-essential
+        
+        # Install Python (for some npm packages)
+        sudo apt install -y python3 python3-pip
+        ```
+      </Step>
+
+      <Step title="Clone Repository">
+        ```bash
+        git clone https://github.com/2004scape/Server.git 04scapes-engine
+        cd 04scapes-engine
+        ```
+      </Step>
+
+      <Step title="Install Dependencies">
+        ```bash
+        npm install
+        # or
+        npm install -g bun && bun install
+        ```
+      </Step>
+
+      <Step title="Run Setup">
+        ```bash
+        chmod +x quickstart.sh
+        ./quickstart.sh
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Database Setup
+
+The engine supports both MySQL and SQLite databases:
+
+<Tabs>
+  <Tab title="SQLite (Recommended for Development)">
+    SQLite requires no additional setup and is perfect for development:
+
+    ```bash
+    # .env configuration
+    DATABASE_URL=file:./data/game.db
+    ```
+
+    The setup script will automatically create the database and run migrations.
+  </Tab>
+
+  <Tab title="MySQL (Production)">
+    For production deployments, MySQL is recommended:
+
+    <Steps>
+      <Step title="Install MySQL">
+        **Ubuntu/Debian:**
+        ```bash
+        sudo apt install mysql-server
+        sudo mysql_secure_installation
+        ```
+
+        **macOS:**
+        ```bash
+        brew install mysql
+        brew services start mysql
+        ```
+
+        **Windows:**
+        Download from [mysql.com](https://dev.mysql.com/downloads/mysql/)
+      </Step>
+
+      <Step title="Create Database">
+        ```sql
+        CREATE DATABASE lostcity;
+        CREATE USER 'lostcity'@'localhost' IDENTIFIED BY 'your_password';
+        GRANT ALL PRIVILEGES ON lostcity.* TO 'lostcity'@'localhost';
+        FLUSH PRIVILEGES;
+        ```
+      </Step>
+
+      <Step title="Configure Connection">
+        Update your `.env` file:
+        ```bash
+        DATABASE_URL=mysql://lostcity:your_password@localhost:3306/lostcity
+        ```
+      </Step>
+
+      <Step title="Run Migrations">
+        ```bash
+        npm run db:migrate
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Environment Configuration
+
+Create a `.env` file in the project root with your configuration:
+
+```bash
+# Database
+DATABASE_URL=file:./data/game.db
+
+# Server Settings
+NODE_ID=1
+WEB_PORT=8080
+GAME_PORT=43594
+
+# Features
+EASY_STARTUP=true
+BUILD_STARTUP_UPDATE=false
+
+# Development
+NODE_DEBUG_SOCKET=false
+NODE_MAX_PLAYERS=2000
+NODE_MAX_NPCS=8192
+
+# Java Path (if needed)
+# JAVA_PATH=/path/to/java
+```
+
+## Verification
+
+After installation, verify everything is working:
+
+<Steps>
+  <Step title="Start the Server">
+    ```bash
+    npm start
+    ```
+    
+    Wait for "World ready" message.
+  </Step>
+
+  <Step title="Access Web Client">
+    Open http://localhost:8080 in your browser.
+  </Step>
+
+  <Step title="Create Test Account">
+    Register a new account and log in.
+  </Step>
+
+  <Step title="Run Tests">
+    ```bash
+    npm test
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Java Version Issues">
+    If you have multiple Java versions installed:
+
+    **Check current version:**
+    ```bash
+    java -version
+    ```
+
+    **Set specific Java path:**
+    ```bash
+    # In .env file
+    JAVA_PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin/java
+    ```
+
+    **Update JAVA_HOME (Linux/macOS):**
+    ```bash
+    export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+    ```
+  </Accordion>
+
+  <Accordion title="Node.js Version Conflicts">
+    Use Node Version Manager (nvm) to manage multiple Node.js versions:
+
+    **Install nvm:**
+    ```bash
+    # macOS/Linux
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+    
+    # Windows (use nvm-windows)
+    # Download from: https://github.com/coreybutler/nvm-windows
+    ```
+
+    **Use specific Node.js version:**
+    ```bash
+    nvm install 22
+    nvm use 22
+    ```
+  </Accordion>
+
+  <Accordion title="Permission Errors (Linux/macOS)">
+    If you encounter permission errors:
+
+    **Fix npm permissions:**
+    ```bash
+    mkdir ~/.npm-global
+    npm config set prefix '~/.npm-global'
+    echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
+    source ~/.bashrc
+    ```
+
+    **Make scripts executable:**
+    ```bash
+    chmod +x quickstart.sh
+    chmod +x setup.sh
+    ```
+  </Accordion>
+
+  <Accordion title="Port Already in Use">
+    If default ports are occupied:
+
+    **Check what's using the port:**
+    ```bash
+    # Windows
+    netstat -ano | findstr :8080
+    
+    # macOS/Linux
+    lsof -i :8080
+    ```
+
+    **Use different ports:**
+    ```bash
+    # In .env file
+    WEB_PORT=8081
+    GAME_PORT=43595
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Once installation is complete:
+
+<CardGroup cols={2}>
+  <Card title="Architecture Overview" href="/architecture/overview" icon="building">
+    Learn about the engine's architecture
+  </Card>
+  <Card title="Development Setup" href="/development/setup" icon="code">
+    Configure your development environment
+  </Card>
+  <Card title="Configuration Guide" href="/configuration" icon="gear">
+    Customize server settings
+  </Card>
+  <Card title="Writing Scripts" href="/scripting/overview" icon="scroll">
+    Start creating game content
+  </Card>
+</CardGroup>

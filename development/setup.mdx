@@ -1,0 +1,920 @@
+---
+title: Development Setup
+description: Complete guide to setting up a development environment for the 04Scapes engine
+---
+
+# Development Setup
+
+This guide will help you set up a complete development environment for working with the 04Scapes engine, including recommended tools, IDE configuration, debugging setup, and development workflow.
+
+## Prerequisites
+
+Before starting development, ensure you have completed the [Installation Guide](/installation) and can successfully run the server.
+
+## Recommended Development Stack
+
+<CardGroup cols={2}>
+  <Card title="Visual Studio Code" icon="code">
+    Primary IDE with excellent TypeScript support and extensions
+  </Card>
+  <Card title="Bun Runtime" icon="zap">
+    Fast JavaScript runtime with built-in bundler and test runner
+  </Card>
+  <Card title="Git" icon="git-alt">
+    Version control with proper .gitignore configuration
+  </Card>
+  <Card title="Database Client" icon="database">
+    MySQL Workbench, phpMyAdmin, or similar for database management
+  </Card>
+</CardGroup>
+
+## IDE Configuration
+
+### Visual Studio Code Setup
+
+<Steps>
+  <Step title="Install Required Extensions">
+    Install these essential extensions for 04Scapes development:
+    
+    ```json
+    // .vscode/extensions.json
+    {
+        "recommendations": [
+            "2004scape.runescriptlanguage",  // RuneScript syntax highlighting
+            "ms-vscode.vscode-typescript-next",  // TypeScript support
+            "bradlc.vscode-tailwindcss",     // CSS utilities
+            "esbenp.prettier-vscode",        // Code formatting
+            "ms-vscode.vscode-eslint",       // Linting
+            "ms-vscode.vscode-json",         // JSON support
+            "redhat.vscode-yaml",            // YAML support
+            "ms-vscode.hexeditor",           // Binary file editing
+            "ms-mssql.mssql"                 // Database support
+        ]
+    }
+    ```
+  </Step>
+  
+  <Step title="Configure Settings">
+    Create VS Code workspace settings:
+    
+    ```json
+    // .vscode/settings.json
+    {
+        "typescript.preferences.importModuleSpecifier": "relative",
+        "typescript.suggest.paths": true,
+        "typescript.suggest.autoImports": true,
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.eslint": true
+        },
+        "files.associations": {
+            "*.rs2": "runescript",
+            "*.cs2": "runescript",
+            "*.dat": "binary",
+            "*.idx": "binary"
+        },
+        "search.exclude": {
+            "**/node_modules": true,
+            "**/data/pack": true,
+            "**/dist": true,
+            "**/*.dat": true,
+            "**/*.idx": true
+        },
+        "files.watcherExclude": {
+            "**/data/pack/**": true,
+            "**/node_modules/**": true
+        }
+    }
+    ```
+  </Step>
+  
+  <Step title="Set Up Debug Configuration">
+    Configure debugging for the engine:
+    
+    ```json
+    // .vscode/launch.json
+    {
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "name": "Launch Server",
+                "type": "node",
+                "request": "launch",
+                "program": "${workspaceFolder}/src/app.ts",
+                "runtime": "bun",
+                "console": "integratedTerminal",
+                "env": {
+                    "NODE_ENV": "development",
+                    "NODE_DEBUG": "true"
+                },
+                "skipFiles": [
+                    "<node_internals>/**"
+                ]
+            },
+            {
+                "name": "Debug Tests",
+                "type": "node",
+                "request": "launch",
+                "program": "${workspaceFolder}/node_modules/.bin/bun",
+                "args": ["test", "${file}"],
+                "console": "integratedTerminal",
+                "skipFiles": [
+                    "<node_internals>/**"
+                ]
+            },
+            {
+                "name": "Pack Cache",
+                "type": "node",
+                "request": "launch",
+                "program": "${workspaceFolder}/tools/pack/pack.ts",
+                "runtime": "bun",
+                "console": "integratedTerminal"
+            }
+        ]
+    }
+    ```
+  </Step>
+  
+  <Step title="Configure Tasks">
+    Set up common development tasks:
+    
+    ```json
+    // .vscode/tasks.json
+    {
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "label": "Start Development Server",
+                "type": "shell",
+                "command": "bun",
+                "args": ["run", "dev"],
+                "group": {
+                    "kind": "build",
+                    "isDefault": true
+                },
+                "presentation": {
+                    "echo": true,
+                    "reveal": "always",
+                    "focus": false,
+                    "panel": "new"
+                }
+            },
+            {
+                "label": "Run Tests",
+                "type": "shell",
+                "command": "bun",
+                "args": ["test"],
+                "group": "test"
+            },
+            {
+                "label": "Lint Code",
+                "type": "shell",
+                "command": "bun",
+                "args": ["run", "lint"],
+                "group": "build"
+            },
+            {
+                "label": "Build Cache",
+                "type": "shell",
+                "command": "bun",
+                "args": ["run", "build"],
+                "group": "build"
+            },
+            {
+                "label": "Database Migration",
+                "type": "shell",
+                "command": "bun",
+                "args": ["run", "db:migrate"],
+                "group": "build"
+            }
+        ]
+    }
+    ```
+  </Step>
+</Steps>
+
+## Environment Configuration
+
+### Development Environment Variables
+
+Create a development-specific environment configuration:
+
+```bash
+# .env.development
+NODE_ENV=development
+NODE_DEBUG=true
+NODE_DEBUG_SOCKET=true
+
+# Development database (use SQLite for fast iteration)
+DATABASE_URL=file:./data/dev.db
+
+# Development ports (avoid conflicts)
+WEB_PORT=8080
+GAME_PORT=43594
+
+# Development features
+EASY_STARTUP=true
+BUILD_STARTUP_UPDATE=false
+ENABLE_PROFILING=true
+
+# Logging
+LOG_LEVEL=debug
+LOG_TO_CONSOLE=true
+LOG_TO_FILE=false
+
+# Performance (lower for development)
+NODE_MAX_PLAYERS=100
+NODE_MAX_NPCS=1000
+
+# Development security (less strict)
+RATE_LIMIT_MAX=1000
+SESSION_TIMEOUT=3600000
+```
+
+### Git Configuration
+
+Set up proper version control:
+
+<Tabs>
+  <Tab title=".gitignore">
+    ```bash
+    # Dependencies
+    node_modules/
+    npm-debug.log*
+    yarn-debug.log*
+    yarn-error.log*
+    
+    # Runtime data
+    data/pack/
+    data/saves/
+    data/*.db
+    data/*.db-journal
+    logs/
+    
+    # Environment files
+    .env
+    .env.local
+    .env.production
+    
+    # IDE files
+    .vscode/settings.json
+    .idea/
+    *.swp
+    *.swo
+    
+    # OS generated files
+    .DS_Store
+    .DS_Store?
+    ._*
+    .Spotlight-V100
+    .Trashes
+    ehthumbs.db
+    Thumbs.db
+    
+    # Build outputs
+    dist/
+    build/
+    bundle.js
+    
+    # Test coverage
+    coverage/
+    
+    # Cache files
+    *.cache
+    .cache/
+    
+    # Temporary files
+    *.tmp
+    *.temp
+    .tmp/
+    ```
+  </Tab>
+  
+  <Tab title=".gitattributes">
+    ```bash
+    # Ensure consistent line endings
+    * text=auto
+    
+    # Binary files
+    *.dat binary
+    *.idx binary
+    *.wasm binary
+    *.db binary
+    *.sqlite binary
+    
+    # Force Unix line endings for scripts
+    *.sh text eol=lf
+    *.rs2 text eol=lf
+    *.cs2 text eol=lf
+    
+    # Archive files
+    *.zip binary
+    *.tar.gz binary
+    *.tgz binary
+    ```
+  </Tab>
+  
+  <Tab title="Git Hooks">
+    ```bash
+    # .husky/pre-commit
+    #!/usr/bin/env sh
+    . "$(dirname -- "$0")/_/husky.sh"
+    
+    # Run linting and formatting
+    bun run precommit
+    
+    # Run tests
+    bun test
+    
+    # Check for debug statements
+    if git diff --cached --name-only | grep -E '\.(ts|js)$' | xargs grep -l 'console\.log\|debugger' 2>/dev/null; then
+        echo "❌ Remove console.log and debugger statements before committing"
+        exit 1
+    fi
+    
+    echo "✅ Pre-commit checks passed"
+    ```
+  </Tab>
+</Tabs>
+
+## Development Workflow
+
+### Daily Development Process
+
+<Steps>
+  <Step title="Start Development Session">
+    ```bash
+    # Pull latest changes
+    git pull origin main
+    
+    # Install/update dependencies
+    bun install
+    
+    # Start development server
+    bun run dev
+    ```
+    
+    The development server will:
+    - Watch for file changes and restart automatically
+    - Enable debug logging
+    - Use development database
+    - Allow higher verbosity
+  </Step>
+  
+  <Step title="Make Changes">
+    **File Watching**: The dev server automatically restarts when you modify:
+    - Engine code (`src/**/*.ts`)
+    - Configuration files
+    - Database schemas
+    
+    **Hot Reloading**: Some changes don't require restart:
+    - RuneScript files (`.rs2`, `.cs2`)
+    - Configuration changes
+    - Database content
+  </Step>
+  
+  <Step title="Test Changes">
+    ```bash
+    # Run specific tests
+    bun test src/engine/World.test.ts
+    
+    # Run all tests
+    bun test
+    
+    # Run with coverage
+    bun test --coverage
+    
+    # Run linting
+    bun run lint
+    ```
+  </Step>
+  
+  <Step title="Debug Issues">
+    Use the VS Code debugger or add debug output:
+    
+    ```typescript
+    // Temporary debug logging
+    import { printDebug } from '#/util/Logger.js';
+    
+    printDebug(`Player ${player.username} performed action: ${action}`);
+    ```
+  </Step>
+  
+  <Step title="Commit Changes">
+    ```bash
+    # Stage changes
+    git add .
+    
+    # Commit with descriptive message
+    git commit -m "feat: add new NPC interaction system"
+    
+    # Push changes
+    git push origin feature-branch
+    ```
+  </Step>
+</Steps>
+
+### Feature Development Process
+
+<Tabs>
+  <Tab title="New Feature Workflow">
+    <Steps>
+      <Step title="Create Feature Branch">
+        ```bash
+        # Create and switch to feature branch
+        git checkout -b feature/new-combat-system
+        
+        # Push branch to remote
+        git push -u origin feature/new-combat-system
+        ```
+      </Step>
+      
+      <Step title="Plan Implementation">
+        - Write design document
+        - Identify affected systems
+        - Plan database changes
+        - Consider backwards compatibility
+      </Step>
+      
+      <Step title="Implement Core Logic">
+        - Start with core engine changes
+        - Add necessary data structures
+        - Implement business logic
+        - Add error handling
+      </Step>
+      
+      <Step title="Add Script Support">
+        - Create new script opcodes if needed
+        - Add script handlers
+        - Write example scripts
+        - Test script integration
+      </Step>
+      
+      <Step title="Update Network Protocol">
+        - Add new message types if needed
+        - Update client handlers
+        - Test network communication
+      </Step>
+      
+      <Step title="Test and Polish">
+        - Write unit tests
+        - Test in development environment
+        - Performance testing
+        - Code review
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="Bug Fix Workflow">
+    <Steps>
+      <Step title="Reproduce Issue">
+        - Create minimal test case
+        - Document steps to reproduce
+        - Identify affected systems
+      </Step>
+      
+      <Step title="Debug Root Cause">
+        - Use debugger to trace execution
+        - Add logging to understand flow
+        - Check related code paths
+      </Step>
+      
+      <Step title="Implement Fix">
+        - Make minimal necessary changes
+        - Ensure fix doesn't break other functionality
+        - Add regression test
+      </Step>
+      
+      <Step title="Verify Fix">
+        - Test original issue is resolved
+        - Run full test suite
+        - Test edge cases
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="Performance Optimization">
+    <Steps>
+      <Step title="Profile Performance">
+        ```typescript
+        // Enable profiling
+        Environment.ENABLE_PROFILING = true;
+        
+        // Use built-in performance tracking
+        const start = Date.now();
+        // ... code to profile
+        const duration = Date.now() - start;
+        console.log(`Operation took ${duration}ms`);
+        ```
+      </Step>
+      
+      <Step title="Identify Bottlenecks">
+        - Monitor tick cycle times
+        - Check memory usage patterns
+        - Profile database queries
+        - Analyze network traffic
+      </Step>
+      
+      <Step title="Optimize Critical Paths">
+        - Cache frequently accessed data
+        - Optimize hot code paths
+        - Reduce object allocations
+        - Batch database operations
+      </Step>
+      
+      <Step title="Measure Improvements">
+        - Before/after performance comparisons
+        - Load testing with realistic data
+        - Monitor in production environment
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Testing Strategy
+
+### Test Types
+
+<AccordionGroup>
+  <Accordion title="Unit Tests">
+    Test individual functions and classes in isolation:
+    
+    ```typescript
+    // tests/engine/World.test.ts
+    import { describe, it, expect, beforeEach } from 'bun:test';
+    import World from '#/engine/World.js';
+    import Player from '#/engine/entity/Player.js';
+    
+    describe('World', () => {
+        beforeEach(() => {
+            // Reset world state
+            World.reset();
+        });
+        
+        it('should add player successfully', () => {
+            const player = new Player();
+            player.username = 'TestPlayer';
+            
+            const result = World.addPlayer(player);
+            
+            expect(result).toBe(true);
+            expect(World.getPlayerCount()).toBe(1);
+            expect(World.getPlayerByUsername('TestPlayer')).toBe(player);
+        });
+        
+        it('should reject player when world is full', () => {
+            // Fill world to capacity
+            for (let i = 0; i < World.PLAYERS; i++) {
+                const player = new Player();
+                player.username = `Player${i}`;
+                World.addPlayer(player);
+            }
+            
+            // Try to add one more
+            const extraPlayer = new Player();
+            extraPlayer.username = 'ExtraPlayer';
+            
+            const result = World.addPlayer(extraPlayer);
+            
+            expect(result).toBe(false);
+            expect(World.getPlayerCount()).toBe(World.PLAYERS);
+        });
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Integration Tests">
+    Test how different systems work together:
+    
+    ```typescript
+    // tests/integration/PlayerNpcInteraction.test.ts
+    import { describe, it, expect, beforeEach } from 'bun:test';
+    import World from '#/engine/World.js';
+    import Player from '#/engine/entity/Player.js';
+    import Npc from '#/engine/entity/Npc.js';
+    import { NpcMode } from '#/engine/entity/NpcMode.js';
+    
+    describe('Player-NPC Interaction', () => {
+        let player: Player;
+        let npc: Npc;
+        
+        beforeEach(async () => {
+            await World.start();
+            
+            player = new Player();
+            player.username = 'TestPlayer';
+            player.setCoords(3200, 3200, 0);
+            World.addPlayer(player);
+            
+            npc = new Npc(0, 3201, 3200, 1, NpcMode.WANDER);
+            World.addNpc(npc);
+        });
+        
+        it('should allow player to talk to nearby NPC', () => {
+            // Player attempts to talk to NPC
+            player.playerOpNpc(npc, 1); // First option (Talk-to)
+            
+            // Should trigger dialogue script
+            expect(player.activeScript).not.toBe(null);
+            expect(npc.mode).toBe(NpcMode.APPLAYER1);
+        });
+        
+        it('should prevent interaction when too far away', () => {
+            // Move player far from NPC
+            player.setCoords(3300, 3300, 0);
+            
+            // Attempt interaction
+            player.playerOpNpc(npc, 1);
+            
+            // Should be rejected
+            expect(player.activeScript).toBe(null);
+            expect(npc.mode).toBe(NpcMode.WANDER);
+        });
+    });
+    ```
+  </Accordion>
+  
+  <Accordion title="Performance Tests">
+    Test system performance under load:
+    
+    ```typescript
+    // tests/performance/WorldLoad.test.ts
+    import { describe, it, expect } from 'bun:test';
+    import World from '#/engine/World.js';
+    import Player from '#/engine/entity/Player.js';
+    
+    describe('World Performance', () => {
+        it('should handle maximum player load', async () => {
+            const startTime = Date.now();
+            
+            // Add maximum players
+            for (let i = 0; i < World.PLAYERS; i++) {
+                const player = new Player();
+                player.username = `Player${i}`;
+                player.setCoords(
+                    3200 + (i % 100),
+                    3200 + Math.floor(i / 100),
+                    0
+                );
+                
+                const added = World.addPlayer(player);
+                expect(added).toBe(true);
+            }
+            
+            const addTime = Date.now() - startTime;
+            console.log(`Added ${World.PLAYERS} players in ${addTime}ms`);
+            
+            // Measure tick performance
+            const tickStart = Date.now();
+            await World.cycle();
+            const tickTime = Date.now() - tickStart;
+            
+            console.log(`Full world tick took ${tickTime}ms`);
+            expect(tickTime).toBeLessThan(600); // Should complete within tick time
+        });
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Running Tests
+
+```bash
+# Run all tests
+bun test
+
+# Run specific test file
+bun test tests/engine/World.test.ts
+
+# Run tests matching pattern
+bun test --grep "Player"
+
+# Run with coverage
+bun test --coverage
+
+# Watch mode for development
+bun test --watch
+```
+
+## Debugging Techniques
+
+<Tabs>
+  <Tab title="VS Code Debugger">
+    Use breakpoints and step-through debugging:
+    
+    1. Set breakpoints in VS Code by clicking the left margin
+    2. Start debugging with F5 or "Launch Server" configuration
+    3. Use debug console to inspect variables
+    4. Step through code with F10 (step over) and F11 (step into)
+  </Tab>
+  
+  <Tab title="Logging">
+    Strategic logging for understanding execution flow:
+    
+    ```typescript
+    import { printDebug, printInfo, printWarning, printError } from '#/util/Logger.js';
+    
+    // Debug detailed execution
+    printDebug(`Processing ${entities.length} entities`);
+    
+    // Info for major milestones
+    printInfo(`Player ${player.username} logged in`);
+    
+    // Warning for unexpected but recoverable situations
+    printWarning(`Player attempted invalid action: ${action}`);
+    
+    // Error for serious problems
+    printError(`Failed to save player data: ${error.message}`);
+    ```
+  </Tab>
+  
+  <Tab title="Performance Profiling">
+    Built-in performance monitoring:
+    
+    ```typescript
+    // Enable in development environment
+    Environment.ENABLE_PROFILING = true;
+    
+    // Access cycle statistics
+    const stats = World.cycleStats;
+    console.log(`Login: ${stats[World.CYCLE_LOGIN]}ms`);
+    console.log(`Players: ${stats[World.CYCLE_PLAYER]}ms`);
+    console.log(`NPCs: ${stats[World.CYCLE_NPC]}ms`);
+    
+    // Custom timing
+    const start = Date.now();
+    processComplexOperation();
+    const duration = Date.now() - start;
+    console.log(`Operation took ${duration}ms`);
+    ```
+  </Tab>
+  
+  <Tab title="Database Debugging">
+    Monitor database queries:
+    
+    ```typescript
+    // Enable query logging
+    const db = getDatabase();
+    
+    // Log all queries in development
+    if (Environment.NODE_DEBUG) {
+        db.on('query', (query) => {
+            console.log('SQL:', query.sql);
+            console.log('Params:', query.bindings);
+        });
+    }
+    
+    // Analyze slow queries
+    db.on('query-response', (response, query) => {
+        if (response.duration > 100) { // Slow query threshold
+            console.warn(`Slow query (${response.duration}ms):`, query.sql);
+        }
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Common Development Tasks
+
+<AccordionGroup>
+  <Accordion title="Adding New NPC">
+    <Steps>
+      <Step title="Create NPC Configuration">
+        ```typescript
+        // Add to NPC config data
+        const newNpcConfig = {
+            id: 999,
+            name: "Test NPC",
+            models: [123],
+            level: 50,
+            hitpoints: 500,
+            op: ["Talk-to", "Attack", null, null, null]
+        };
+        ```
+      </Step>
+      
+      <Step title="Add NPC Scripts">
+        ```runescript
+        // Create scripts/npc/test_npc.rs2
+        [opnpc1,test_npc]
+        ~chatnpc(test_npc, happy, "Hello, adventurer!");
+        ~chatplayer(happy, "Hi there!");
+        ```
+      </Step>
+      
+      <Step title="Spawn NPC in World">
+        ```typescript
+        // Add to world initialization
+        const npc = new Npc(0, 3200, 3200, 999, NpcMode.WANDER);
+        World.addNpc(npc);
+        ```
+      </Step>
+    </Steps>
+  </Accordion>
+  
+  <Accordion title="Adding New Item">
+    <Steps>
+      <Step title="Add Item Configuration">
+        ```typescript
+        const newItemConfig = {
+            id: 1999,
+            name: "Test Sword",
+            description: "A sword for testing purposes.",
+            model: 456,
+            wearpos: WearPos.WEAPON,
+            cost: 1000,
+            op: ["Wield", null, null, null, "Drop"]
+        };
+        ```
+      </Step>
+      
+      <Step title="Add Item Scripts">
+        ```runescript
+        // Wield script
+        [opobj1,test_sword]
+        if (stat_base(attack) < 30) {
+            mes("You need 30 Attack to wield this sword.");
+            return;
+        }
+        
+        ~equip_item(inv, worn, last_slot);
+        ```
+      </Step>
+    </Steps>
+  </Accordion>
+  
+  <Accordion title="Database Migration">
+    <Steps>
+      <Step title="Create Migration">
+        ```bash
+        # Generate migration file
+        npx prisma migrate dev --name add_new_feature --schema prisma/multiworld/schema.prisma
+        ```
+      </Step>
+      
+      <Step title="Update Schema">
+        ```prisma
+        model new_feature {
+            id         Int @id @default(autoincrement())
+            account_id Int
+            value      String
+            created    DateTime @default(now())
+        }
+        ```
+      </Step>
+      
+      <Step title="Apply Migration">
+        ```bash
+        # Apply in development
+        npm run db:migrate
+        
+        # Reset if needed
+        npm run db:reset
+        ```
+      </Step>
+    </Steps>
+  </Accordion>
+</AccordionGroup>
+
+## Code Quality Guidelines
+
+### TypeScript Best Practices
+
+- Always use strict typing
+- Avoid `any` type
+- Use interfaces for complex objects
+- Implement proper error handling
+- Follow naming conventions
+
+### Performance Guidelines
+
+- Avoid blocking operations in game loop
+- Use object pooling for frequently created objects
+- Cache expensive calculations
+- Batch database operations
+- Monitor memory usage
+
+### Security Considerations
+
+- Validate all client input
+- Use parameterized database queries
+- Implement rate limiting
+- Log security-relevant events
+- Never trust client data
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Workflow Guide" href="/development/workflow" icon="workflow">
+    Learn the complete development workflow
+  </Card>
+  <Card title="Debugging Guide" href="/development/debugging" icon="bug">
+    Master debugging techniques and tools
+  </Card>
+  <Card title="Testing Guide" href="/development/testing" icon="vial">
+    Understand testing strategies and frameworks
+  </Card>
+  <Card title="Contributing" href="/development/contributing" icon="code-branch">
+    Guidelines for contributing to the project
+  </Card>
+</CardGroup>

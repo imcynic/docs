@@ -1,97 +1,88 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: 04Scapes Engine Documentation
+description: Comprehensive documentation for the 04Scapes game engine - a TypeScript implementation of a classic MMORPG server
 ---
 
-## Setting up
+# Welcome to 04Scapes Engine
 
-Get your documentation site up and running in minutes.
+The 04Scapes Engine is a high-performance, TypeScript-based MMORPG server implementation designed to recreate the classic RuneScape experience from May 18, 2004. This documentation provides comprehensive guidance for developers working with the engine.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+## What is 04Scapes Engine?
 
-## Make it yours
+04Scapes is a complete game server implementation featuring:
 
-Design a docs site that looks great and empowers your users.
+- **Full Game Engine**: Complete world simulation with tick-based processing
+- **Entity Management**: Players, NPCs, objects, and location handling
+- **RuneScript System**: Powerful scripting engine for game content
+- **Network Protocol**: Client-server communication with packet handling
+- **Database Integration**: MySQL/SQLite support for persistence
+- **Cache System**: Efficient data packing and loading
+- **Multi-world Support**: Scalable architecture for multiple game worlds
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="High Performance" icon="bolt">
+    Built with Bun and TypeScript for optimal performance and type safety
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Modular Architecture" icon="cubes">
+    Clean separation of concerns with modular components
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Script System" icon="code">
+    Powerful RuneScript language for game content creation
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Real-time Multiplayer" icon="users">
+    Support for thousands of concurrent players
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## Quick Navigation
 
-Everything you need to create world-class documentation.
+<CardGroup cols={3}>
+  <Card title="Getting Started" icon="rocket" href="/quickstart">
+    Set up your development environment and run the server
+  </Card>
+  <Card title="Architecture" icon="building" href="/architecture/overview">
+    Understand the engine's core architecture
+  </Card>
+  <Card title="Scripting" icon="scroll" href="/scripting/overview">
+    Learn to write game content with RuneScript
+  </Card>
+  <Card title="Entity System" icon="user" href="/engine/entities/overview">
+    Work with players, NPCs, and objects
+  </Card>
+  <Card title="Networking" icon="network-wired" href="/networking/overview">
+    Understand client-server communication
+  </Card>
+  <Card title="API Reference" icon="book" href="/api/world">
+    Detailed API documentation
+  </Card>
+</CardGroup>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Technology Stack
 
-## Need inspiration?
+- **Runtime**: [Bun](https://bun.sh/) - Fast JavaScript runtime
+- **Language**: TypeScript - Type-safe development
+- **Database**: MySQL/SQLite with Prisma ORM
+- **Networking**: TCP/WebSocket support
+- **Testing**: Built-in test framework
+- **Build Tools**: Custom packing and compilation tools
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+## System Requirements
+
+- Node.js 22+ or Bun runtime
+- Java 17+ (for client tools)
+- 4GB RAM minimum
+- Windows, macOS, or Linux
+
+## Community
+
+Join our community for support and discussions:
+
+- [GitHub Repository](https://github.com/2004scape/Server)
+- [Community Forum](https://lostcity.rs)
+- [Discord Server](https://discord.gg/lostcity)
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](https://github.com/2004scape/Server/blob/main/LICENSE) file for details.

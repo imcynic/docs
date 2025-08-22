@@ -1,0 +1,489 @@
+---
+title: Configuration
+description: Configure the 04Scapes engine for your specific needs
+---
+
+# Configuration
+
+The 04Scapes engine offers extensive configuration options to customize server behavior, performance, and features. This guide covers all configuration files and environment variables.
+
+## Environment Variables
+
+The primary configuration is handled through environment variables, typically stored in a `.env` file in the project root.
+
+### Core Settings
+
+```bash
+# Node Configuration
+NODE_ID=1                    # Unique identifier for this server instance
+NODE_MAX_PLAYERS=2000       # Maximum concurrent players
+NODE_MAX_NPCS=8192         # Maximum NPCs in world
+
+# Network Settings
+WEB_PORT=8080              # Web client and management interface port
+GAME_PORT=43594            # Game client connection port
+```
+
+### Database Configuration
+
+<Tabs>
+  <Tab title="SQLite (Development)">
+    ```bash
+    # SQLite database (recommended for development)
+    DATABASE_URL=file:./data/game.db
+    ```
+  </Tab>
+  
+  <Tab title="MySQL (Production)">
+    ```bash
+    # MySQL database (recommended for production)
+    DATABASE_URL=mysql://username:password@localhost:3306/database_name
+    
+    # Connection pool settings
+    DATABASE_POOL_MIN=5
+    DATABASE_POOL_MAX=20
+    ```
+  </Tab>
+</Tabs>
+
+### Feature Flags
+
+```bash
+# Startup Behavior
+EASY_STARTUP=true            # Auto-start login/friend/logger services
+BUILD_STARTUP_UPDATE=false   # Update build tools on startup
+
+# Development Features
+NODE_DEBUG_SOCKET=false      # Enable extended socket debugging
+NODE_PRODUCTION=false        # Production mode optimizations
+
+# Client Features
+WEB_CLIENT_ENABLED=true      # Enable built-in web client
+MANAGEMENT_WEB_ENABLED=true  # Enable management interface
+```
+
+### Java Configuration
+
+```bash
+# Java Runtime (if not in PATH)
+JAVA_PATH=/path/to/java
+
+# JVM Settings for tools
+JAVA_OPTS=-Xmx2G -Xms512M
+```
+
+## Neptune Configuration
+
+The `neptune.toml` file contains advanced server configuration:
+
+```toml
+# Network settings
+[network]
+tcp_nodelay = true
+tcp_keepalive = true
+socket_timeout = 30000
+
+# World settings
+[world]
+tick_rate = 600              # 600ms game ticks
+max_players = 2000
+max_npcs = 8192
+save_interval = 900000       # Player save interval (15 minutes)
+
+# Cache settings
+[cache]
+auto_rebuild = false
+compression_level = 9
+validate_checksums = true
+
+# Security
+[security]
+rsa_key_size = 1024
+session_timeout = 3600000    # 1 hour
+max_login_attempts = 5
+
+# Logging
+[logging]
+level = "info"
+file_rotation = true
+max_file_size = "100MB"
+max_files = 10
+```
+
+## Database Schemas
+
+The engine supports multiple database schemas for different deployment scenarios.
+
+### Multi-world Schema
+
+For production environments with multiple game worlds:
+
+```bash
+# Use multi-world schema
+npm run db:migrate
+# This uses prisma/multiworld/schema.prisma
+```
+
+**Features:**
+- Cross-world friends and messaging
+- Centralized account management
+- World-specific player data
+- Hiscores across all worlds
+
+### Single-world Schema
+
+For development or single-world deployments:
+
+```bash
+# Use single-world schema
+npm run sqlite:migrate
+# This uses prisma/singleworld/schema.prisma
+```
+
+**Features:**
+- Simplified database structure
+- SQLite compatibility
+- Faster development setup
+- Local player data
+
+## Performance Tuning
+
+### Memory Configuration
+
+```bash
+# Node.js memory limits
+NODE_OPTIONS="--max-old-space-size=4096"
+
+# Garbage collection tuning
+NODE_OPTIONS="--max-old-space-size=4096 --gc-interval=100"
+```
+
+### Cache Settings
+
+```typescript
+// In Environment.ts (rebuild required)
+export const CACHE_SETTINGS = {
+    // Client cache compression
+    COMPRESSION_LEVEL: 9,
+    
+    // Preload commonly used configs
+    PRELOAD_CONFIGS: true,
+    
+    // Cache validation
+    VALIDATE_CHECKSUMS: true,
+    
+    // Memory limits
+    MAX_CACHE_SIZE: 512 * 1024 * 1024, // 512MB
+};
+```
+
+### Database Optimization
+
+<Tabs>
+  <Tab title="MySQL">
+    ```sql
+    -- Recommended MySQL settings for production
+    
+    -- Connection settings
+    SET GLOBAL max_connections = 500;
+    SET GLOBAL connect_timeout = 60;
+    SET GLOBAL wait_timeout = 28800;
+    SET GLOBAL interactive_timeout = 28800;
+    
+    -- Memory settings
+    SET GLOBAL innodb_buffer_pool_size = 1073741824; -- 1GB
+    SET GLOBAL query_cache_size = 268435456; -- 256MB
+    SET GLOBAL query_cache_type = ON;
+    
+    -- Performance settings
+    SET GLOBAL innodb_flush_log_at_trx_commit = 2;
+    SET GLOBAL sync_binlog = 0;
+    ```
+  </Tab>
+  
+  <Tab title="SQLite">
+    ```bash
+    # SQLite optimization via DATABASE_URL
+    DATABASE_URL=file:./data/game.db?cache=shared&mode=rwc&_journal=WAL&_timeout=5000&_fk=1
+    ```
+  </Tab>
+</Tabs>
+
+## Security Configuration
+
+### RSA Key Generation
+
+The engine uses RSA encryption for secure client communication:
+
+```bash
+# Generate new RSA keys (2048-bit recommended)
+npm run tools:rsa -- --keysize 2048
+
+# Keys are stored in:
+# data/config/private.pem
+# data/config/public.pem
+```
+
+### Account Security
+
+```bash
+# Password hashing rounds (higher = more secure, slower)
+BCRYPT_ROUNDS=12
+
+# Session management
+SESSION_SECRET=your-random-secret-key
+SESSION_TIMEOUT=3600000  # 1 hour
+
+# Two-factor authentication
+TFA_ISSUER=04Scapes
+TFA_WINDOW=1             # TOTP window (30 seconds * window)
+```
+
+### IP Security
+
+```bash
+# Rate limiting
+RATE_LIMIT_WINDOW=60000  # 1 minute
+RATE_LIMIT_MAX=100       # Max requests per window
+
+# IP whitelist for admin functions
+ADMIN_IPS=127.0.0.1,::1
+
+# Cloudflare proxy support
+TRUST_PROXY=true
+```
+
+## Logging Configuration
+
+### Log Levels
+
+```bash
+# Available levels: error, warn, info, debug, trace
+LOG_LEVEL=info
+
+# Component-specific logging
+LOG_NETWORK=false
+LOG_SCRIPTS=true
+LOG_DATABASE=false
+LOG_CACHE=false
+```
+
+### Log Destinations
+
+```bash
+# File logging
+LOG_TO_FILE=true
+LOG_FILE_PATH=./logs/server.log
+LOG_FILE_MAX_SIZE=100MB
+LOG_FILE_MAX_FILES=10
+
+# Console logging
+LOG_TO_CONSOLE=true
+LOG_CONSOLE_COLORS=true
+
+# Remote logging (optional)
+LOG_REMOTE_URL=https://your-log-service.com/api/logs
+LOG_REMOTE_API_KEY=your-api-key
+```
+
+## Development Configuration
+
+### Hot Reloading
+
+```bash
+# Enable automatic restarts on code changes
+npm run dev
+
+# Watch specific directories
+WATCH_DIRS=src,tools,data/config
+IGNORE_DIRS=node_modules,dist,logs
+```
+
+### Debug Features
+
+```bash
+# Script debugging
+DEBUG_SCRIPTS=true
+DEBUG_SCRIPT_EXECUTION=false
+
+# Network debugging
+DEBUG_PACKETS=false
+DEBUG_PACKET_VERBOSE=false
+
+# Performance profiling
+ENABLE_PROFILING=false
+PROFILE_MEMORY=false
+```
+
+## Production Deployment
+
+### Environment Setup
+
+```bash
+# Production environment
+NODE_ENV=production
+NODE_PRODUCTION=true
+
+# Disable development features
+EASY_STARTUP=false
+DEBUG_SCRIPTS=false
+DEBUG_PACKETS=false
+```
+
+### Process Management
+
+Use PM2 for production process management:
+
+```javascript
+// ecosystem.config.js
+module.exports = {
+  apps: [{
+    name: '04scapes-world1',
+    script: 'src/app.ts',
+    interpreter: 'bun',
+    instances: 1,
+    exec_mode: 'fork',
+    env: {
+      NODE_ID: 1,
+      NODE_ENV: 'production',
+      WEB_PORT: 8080,
+      GAME_PORT: 43594
+    },
+    log_file: './logs/combined.log',
+    out_file: './logs/out.log',
+    error_file: './logs/error.log',
+    merge_logs: true,
+    max_memory_restart: '2G'
+  }]
+};
+```
+
+### Load Balancing
+
+For multiple world setup:
+
+```nginx
+# nginx.conf
+upstream game_servers {
+    server 127.0.0.1:43594 weight=1;
+    server 127.0.0.1:43595 weight=1;
+    server 127.0.0.1:43596 weight=1;
+}
+
+upstream web_servers {
+    server 127.0.0.1:8080;
+    server 127.0.0.1:8081;
+    server 127.0.0.1:8082;
+}
+
+server {
+    listen 80;
+    server_name your-domain.com;
+    
+    location / {
+        proxy_pass http://web_servers;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+    
+    location /game {
+        proxy_pass http://game_servers;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+## Monitoring and Metrics
+
+### Prometheus Metrics
+
+The engine exposes Prometheus metrics on the management port:
+
+```bash
+# Access metrics
+curl http://localhost:8080/metrics
+
+# Common metrics:
+# - player_count
+# - npc_count  
+# - tick_duration
+# - memory_usage
+# - network_bytes_in/out
+# - database_query_duration
+```
+
+### Health Checks
+
+```bash
+# Health check endpoint
+curl http://localhost:8080/health
+
+# Response:
+{
+  "status": "healthy",
+  "uptime": 3600000,
+  "players": 150,
+  "npcs": 2048,
+  "memory": {
+    "used": 256000000,
+    "available": 1024000000
+  }
+}
+```
+
+## Configuration Validation
+
+The engine validates configuration on startup:
+
+<AccordionGroup>
+  <Accordion title="Common Validation Errors">
+    **Invalid port range:**
+    ```
+    Error: WEB_PORT must be between 1024 and 65535
+    ```
+    
+    **Missing required variables:**
+    ```
+    Error: DATABASE_URL is required
+    ```
+    
+    **Invalid database URL:**
+    ```
+    Error: Invalid DATABASE_URL format
+    ```
+  </Accordion>
+  
+  <Accordion title="Configuration Testing">
+    Test your configuration:
+    
+    ```bash
+    # Validate configuration
+    npm run config:validate
+    
+    # Check database connection
+    npm run db:check
+    
+    # Test RSA keys
+    npm run keys:test
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Development Setup" href="/development/setup" icon="code">
+    Set up your development environment
+  </Card>
+  <Card title="Architecture Overview" href="/architecture/overview" icon="building">
+    Understand the engine architecture
+  </Card>
+  <Card title="Database Schema" href="/database/overview" icon="database">
+    Learn about the database structure
+  </Card>
+  <Card title="Monitoring" href="/monitoring" icon="chart-line">
+    Set up monitoring and logging
+  </Card>
+</CardGroup>

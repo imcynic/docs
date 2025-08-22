@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "04Scapes Engine Documentation",
   "colors": {
     "primary": "#16A34A",
     "light": "#07C983",
@@ -11,58 +11,199 @@
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Getting Started",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Introduction",
             "pages": [
               "index",
               "quickstart",
-              "development"
+              "installation",
+              "configuration"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Development",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
-            ]
-          },
-          {
-            "group": "Writing content",
-            "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
-            ]
-          },
-          {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "development/setup",
+              "development/workflow",
+              "development/debugging",
+              "development/testing"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Architecture",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Overview",
             "pages": [
-              "api-reference/introduction"
+              "architecture/overview",
+              "architecture/concepts",
+              "architecture/project-structure"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Core Systems",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "architecture/world-engine",
+              "architecture/game-loop",
+              "architecture/tick-system",
+              "architecture/event-system"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Engine",
+        "groups": [
+          {
+            "group": "Entity System",
+            "pages": [
+              "engine/entities/overview",
+              "engine/entities/player",
+              "engine/entities/npc",
+              "engine/entities/objects",
+              "engine/entities/locations"
+            ]
+          },
+          {
+            "group": "World Management",
+            "pages": [
+              "engine/world/zones",
+              "engine/world/game-map",
+              "engine/world/collision",
+              "engine/world/pathfinding"
+            ]
+          },
+          {
+            "group": "Inventory System",
+            "pages": [
+              "engine/inventory/overview",
+              "engine/inventory/operations",
+              "engine/inventory/shops"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Scripting",
+        "groups": [
+          {
+            "group": "RuneScript",
+            "pages": [
+              "scripting/overview",
+              "scripting/syntax",
+              "scripting/variables",
+              "scripting/triggers"
+            ]
+          },
+          {
+            "group": "Script Operations",
+            "pages": [
+              "scripting/opcodes/core",
+              "scripting/opcodes/player",
+              "scripting/opcodes/npc",
+              "scripting/opcodes/object",
+              "scripting/opcodes/inventory"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Networking",
+        "groups": [
+          {
+            "group": "Protocol",
+            "pages": [
+              "networking/overview",
+              "networking/client-protocol",
+              "networking/server-protocol",
+              "networking/packet-structure"
+            ]
+          },
+          {
+            "group": "Communication",
+            "pages": [
+              "networking/tcp-server",
+              "networking/websocket",
+              "networking/message-handling"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Database",
+        "groups": [
+          {
+            "group": "Schema",
+            "pages": [
+              "database/overview",
+              "database/account-system",
+              "database/hiscores",
+              "database/social-features"
+            ]
+          },
+          {
+            "group": "Persistence",
+            "pages": [
+              "database/player-saves",
+              "database/session-tracking",
+              "database/wealth-tracking"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Configuration",
+        "groups": [
+          {
+            "group": "Config Types",
+            "pages": [
+              "config/overview",
+              "config/npc-config",
+              "config/object-config",
+              "config/item-config",
+              "config/location-config"
+            ]
+          },
+          {
+            "group": "Cache System",
+            "pages": [
+              "config/cache-packing",
+              "config/client-cache",
+              "config/server-cache"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Classes",
+            "pages": [
+              "api/world",
+              "api/player",
+              "api/npc",
+              "api/inventory"
+            ]
+          },
+          {
+            "group": "Script Handlers",
+            "pages": [
+              "api/script-runner",
+              "api/script-state",
+              "api/script-opcodes"
+            ]
+          },
+          {
+            "group": "Network",
+            "pages": [
+              "api/client-messages",
+              "api/server-messages",
+              "api/packet-encoding"
             ]
           }
         ]
@@ -71,19 +212,19 @@
     "global": {
       "anchors": [
         {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
+          "anchor": "GitHub",
+          "href": "https://github.com/2004scape/Server",
+          "icon": "github"
         },
         {
-          "anchor": "Community",
-          "href": "https://mintlify.com/community",
-          "icon": "slack"
+          "anchor": "Forum",
+          "href": "https://lostcity.rs",
+          "icon": "comments"
         },
         {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
+          "anchor": "Discord",
+          "href": "https://discord.gg/lostcity",
+          "icon": "discord"
         }
       ]
     }
@@ -95,14 +236,14 @@
   "navbar": {
     "links": [
       {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "label": "GitHub",
+        "href": "https://github.com/2004scape/Server"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
+      "label": "Play Now",
+      "href": "https://lostcity.rs"
     }
   },
   "contextual": {

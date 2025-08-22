@@ -1,0 +1,549 @@
+---
+title: Project Structure
+description: Detailed breakdown of the 04Scapes engine codebase organization
+---
+
+# Project Structure
+
+The 04Scapes engine follows a well-organized directory structure that separates concerns and makes the codebase easy to navigate.
+
+## Root Directory
+
+```
+04scapes-engine/
+├── src/                    # Source code
+├── tools/                  # Build and development tools
+├── prisma/                 # Database schemas and migrations
+├── data/                   # Runtime data and configuration
+├── public/                 # Static web assets
+├── view/                   # Web interface templates
+├── package.json           # Node.js dependencies and scripts
+├── tsconfig.json          # TypeScript configuration
+├── neptune.toml           # Engine configuration
+├── .env                   # Environment variables
+└── README.md              # Project documentation
+```
+
+## Source Code Structure (`/src`)
+
+The main source code is organized into logical modules:
+
+### Core Engine (`/src/engine`)
+
+<Tabs>
+  <Tab title="Entity System">
+    **`/src/engine/entity/`** - All game entities and related systems
+    
+    ```
+    entity/
+    ├── Entity.ts                    # Base entity class
+    ├── PathingEntity.ts            # Entities that can move
+    ├── NonPathingEntity.ts         # Static entities
+    ├── Player.ts                   # Player implementation
+    ├── Npc.ts                      # NPC implementation
+    ├── Obj.ts                      # Ground objects
+    ├── Loc.ts                      # World locations
+    ├── EntityList.ts               # Entity management
+    ├── EntityLifeCycle.ts          # Entity state management
+    ├── EntityTimer.ts              # Timer system
+    ├── BlockWalk.ts                # Movement blocking
+    ├── Interaction.ts              # Entity interactions
+    └── hunt/                       # NPC AI behaviors
+        ├── HuntCheckNotTooStrong.ts
+        ├── HuntModeType.ts
+        ├── HuntNobodyNear.ts
+        └── HuntVis.ts
+    ```
+  </Tab>
+  
+  <Tab title="World Systems">
+    **Core world management files:**
+    
+    ```
+    ├── World.ts                    # Main world class and game loop
+    ├── WorldStat.ts               # World statistics tracking  
+    ├── GameMap.ts                 # World map and collision
+    ├── Inventory.ts               # Inventory system
+    ├── OnDemand.ts                # Dynamic content loading
+    └── CoordGrid.ts               # Coordinate system
+    ```
+  </Tab>
+  
+  <Tab title="Zone System">
+    **`/src/engine/zone/`** - Spatial partitioning and area management
+    
+    ```
+    zone/
+    ├── Zone.ts                     # Zone implementation
+    ├── ZoneEvent.ts               # Zone update events
+    ├── ZoneEventType.ts           # Event type definitions
+    ├── ZoneGrid.ts                # Zone coordinate system
+    └── ZoneMap.ts                 # Zone management
+    ```
+  </Tab>
+  
+  <Tab title="Script System">
+    **`/src/engine/script/`** - RuneScript execution engine
+    
+    ```
+    script/
+    ├── ScriptFile.ts              # Script file representation
+    ├── ScriptRunner.ts            # Script execution engine
+    ├── ScriptState.ts             # Execution context
+    ├── ScriptPointer.ts           # Entity references
+    ├── ScriptProvider.ts          # Script loading
+    ├── ScriptOpcode.ts            # Opcode definitions
+    ├── ScriptValidators.ts        # Input validation
+    ├── ServerTriggerType.ts       # Event triggers
+    └── handlers/                  # Opcode implementations
+        ├── CoreOps.ts             # Core language operations
+        ├── PlayerOps.ts           # Player-specific operations
+        ├── NpcOps.ts              # NPC operations
+        ├── ObjOps.ts              # Object operations
+        ├── LocOps.ts              # Location operations
+        ├── InvOps.ts              # Inventory operations
+        ├── StringOps.ts           # String manipulation
+        ├── NumberOps.ts           # Numeric operations
+        ├── EnumOps.ts             # Enumeration operations
+        ├── DbOps.ts               # Database operations
+        └── DebugOps.ts            # Debugging utilities
+    ```
+  </Tab>
+</Tabs>
+
+### Network Layer (`/src/network`)
+
+Handles all client-server communication:
+
+<Tabs>
+  <Tab title="Game Protocol">
+    **`/src/network/game/`** - Core game networking
+    
+    ```
+    game/
+    ├── client/                     # Client message handling
+    │   ├── codec/                  # Message decoding
+    │   │   ├── ClientProtBase.ts   # Base protocol definitions
+    │   │   ├── MessageDecoder.ts   # Message parsing
+    │   │   └── rs244/              # RS2 build 244 protocol
+    │   ├── handler/                # Message handlers
+    │   │   ├── MoveClickHandler.ts # Movement handling
+    │   │   ├── OpPlayerHandler.ts  # Player interactions
+    │   │   ├── OpNpcHandler.ts     # NPC interactions
+    │   │   └── ...                 # Other handlers
+    │   └── model/                  # Message data structures
+    └── server/                     # Server message generation
+        ├── codec/                  # Message encoding
+        ├── model/                  # Server message types
+        └── ZoneMessage.ts          # Zone update messages
+    ```
+  </Tab>
+  
+  <Tab title="Server Infrastructure">
+    **`/src/server/`** - Server infrastructure and services
+    
+    ```
+    server/
+    ├── tcp/                        # TCP server implementation
+    │   ├── TcpServer.ts           # Main TCP server
+    │   └── TcpClientSocket.ts     # TCP client connections
+    ├── ws/                         # WebSocket server
+    │   └── WSClientSocket.ts      # WebSocket connections  
+    ├── worker/                     # Worker thread support
+    │   ├── WorkerServer.ts        # Worker management
+    │   └── WorkerClientSocket.ts  # Worker communications
+    ├── login/                      # Login server
+    │   ├── LoginServer.ts         # Authentication service
+    │   ├── LoginClient.ts         # Login handling
+    │   └── LoginThread.ts         # Login worker thread
+    ├── friend/                     # Friends system
+    │   ├── FriendServer.ts        # Friends service
+    │   └── FriendThread.ts        # Friends worker
+    └── logger/                     # Logging service
+        ├── LoggerServer.ts        # Log aggregation
+        └── LoggerThread.ts        # Logging worker
+    ```
+  </Tab>
+</Tabs>
+
+### Cache System (`/src/cache`)
+
+Game data loading and management:
+
+<Tabs>
+  <Tab title="Configuration Types">
+    **`/src/cache/config/`** - Game object definitions
+    
+    ```
+    config/
+    ├── CategoryType.ts            # Interface categories
+    ├── Component.ts               # Interface components  
+    ├── DbRowType.ts              # Database row configs
+    ├── DbTableType.ts            # Database table configs
+    ├── EnumType.ts               # Enumeration configs
+    ├── FloType.ts                # Floor overlay configs
+    ├── FontType.ts               # Font definitions
+    ├── HuntType.ts               # NPC hunt behaviors
+    ├── IdkType.ts                # Identity kit (appearance)
+    ├── InvType.ts                # Inventory definitions
+    ├── LocType.ts                # Location object configs
+    ├── MesanimType.ts            # Animation configs
+    ├── NpcType.ts                # NPC definitions
+    ├── ObjType.ts                # Item/object configs
+    ├── ParamType.ts              # Parameter definitions
+    ├── ScriptVarType.ts          # Script variable types
+    ├── SeqType.ts                # Sequence/animation configs
+    ├── SpotanimType.ts           # Spot animation configs
+    ├── StructType.ts             # Structure definitions
+    ├── VarNpcType.ts             # NPC variable configs
+    ├── VarPlayerType.ts          # Player variable configs
+    └── VarSharedType.ts          # Shared variable configs
+    ```
+  </Tab>
+  
+  <Tab title="Graphics & Assets">
+    **`/src/cache/graphics/`** - 3D models and animations
+    
+    ```
+    graphics/
+    ├── AnimBase.ts               # Animation base classes
+    ├── AnimFrame.ts              # Animation frames
+    ├── Model.ts                  # 3D model data
+    └── Pix.ts                    # Pixel/texture data
+    ```
+  </Tab>
+  
+  <Tab title="Text Processing">
+    **`/src/cache/wordenc/`** - Text filtering and encoding
+    
+    ```
+    wordenc/
+    ├── WordEnc.ts               # Word encoder/decoder
+    ├── WordEncBadWords.ts       # Profanity filter
+    ├── WordEncDomains.ts        # Domain name filter  
+    ├── WordEncFragments.ts      # Word fragment matching
+    └── WordEncTlds.ts           # TLD filtering
+    ```
+  </Tab>
+</Tabs>
+
+### Utilities (`/src/util`)
+
+Common utilities and helpers:
+
+```
+util/
+├── Environment.ts              # Environment configuration
+├── Logger.ts                   # Logging utilities
+├── JString.ts                  # String manipulation (Java-style)
+├── Numbers.ts                  # Numeric utilities
+├── Parse.ts                    # Parsing helpers
+├── TryParse.ts                 # Safe parsing functions
+├── Trig.ts                     # Trigonometry functions
+├── ColorConversion.ts          # Color utilities
+├── Messages.ts                 # Message formatting
+├── NameMap.ts                  # Name-to-ID mapping
+├── ChatModes.ts               # Chat system constants
+├── PackFile.ts                # File packing utilities
+├── PixPack.ts                 # Pixel data packing
+├── QuickSort.ts               # Sorting algorithms
+├── RandomAccessFile.ts        # File I/O utilities
+├── RuneScriptCompiler.ts      # Script compilation
+├── WorkerFactory.ts           # Worker thread creation
+├── DoublyLinkList.ts          # Linked list implementation
+├── LinkList.ts                # Single linked list
+└── WalkTriggerSetting.ts      # Movement trigger configs
+```
+
+### I/O Operations (`/src/io`)
+
+File and network I/O handling:
+
+```
+io/
+├── FileStream.ts              # File stream operations
+├── Packet.ts                  # Network packet handling
+├── Isaac.ts                   # ISAAC cipher implementation
+├── BZip2.ts                   # BZip2 compression
+├── GZip.ts                    # GZip compression
+├── Jagfile.ts                 # Jagex archive format
+├── PemUtil.ts                 # PEM key utilities
+└── RandomAccessFile.ts        # Random file access
+```
+
+### Database Layer (`/src/db`)
+
+Database access and ORM integration:
+
+```
+db/
+├── types.ts                   # Generated Prisma types
+├── query.ts                   # Query utilities
+└── dialect/                   # Database dialect support
+    ├── BunSqliteDialect.ts   # Bun SQLite integration
+    ├── BunSqliteDriver.ts    # SQLite driver
+    └── BunSqliteDialectConfig.ts # SQLite configuration
+```
+
+### Web Interface (`/src`)
+
+Web server and management interface:
+
+```
+├── web.ts                     # Web server setup
+├── app.ts                     # Main application entry
+├── appWorker.ts              # Worker thread entry
+├── friend.ts                  # Friends service entry
+├── login.ts                   # Login service entry
+└── logger.ts                  # Logger service entry
+```
+
+## Tools Directory (`/tools`)
+
+Development and build tools:
+
+<Tabs>
+  <Tab title="Packing Tools">
+    **`/tools/pack/`** - Cache building and packing utilities
+    
+    ```
+    pack/
+    ├── pack.ts                    # Main packing script
+    ├── cleanClient.ts             # Client cache cleanup
+    ├── cleanServer.ts             # Server cache cleanup
+    ├── symbols.ts                 # Symbol table generation
+    ├── config/                    # Config packing tools
+    │   ├── NpcConfig.ts          # NPC config packing
+    │   ├── ObjConfig.ts          # Object config packing
+    │   ├── LocConfig.ts          # Location config packing
+    │   └── ...                   # Other config packers
+    ├── graphics/                  # Graphics packing
+    │   ├── pack.ts               # Graphics packer
+    │   └── recolor.ts            # Color processing
+    ├── interface/                 # UI packing
+    │   ├── PackClient.ts         # Client UI packing
+    │   └── PackServer.ts         # Server UI packing
+    ├── map/                      # Map data packing
+    │   ├── PackClient.js         # Client map packing
+    │   ├── PackServer.js         # Server map packing
+    │   └── Worldmap.ts           # World map generation
+    ├── sound/                    # Audio packing
+    │   └── pack.ts               # Sound packer
+    └── sprite/                   # Image/sprite packing
+        ├── media.ts              # Media sprites
+        ├── textures.ts           # Texture packing
+        └── title.ts              # Title screen assets
+    ```
+  </Tab>
+  
+  <Tab title="Server Tools">
+    **`/tools/server/`** - Server management utilities
+    
+    ```
+    server/
+    ├── headless.ts               # Headless server mode
+    ├── hiscores.ts              # Hiscore management
+    ├── items.ts                 # Item database tools
+    ├── rsa.ts                   # RSA key generation
+    └── setup.ts                 # Initial server setup
+    ```
+  </Tab>
+  
+  <Tab title="Unpacking Tools">
+    **`/tools/unpack/`** - Cache extraction and analysis
+    
+    ```
+    unpack/
+    ├── config/                   # Config extraction
+    │   ├── Unpack.ts            # Generic config unpacker
+    │   ├── Compare.ts           # Config comparison
+    │   ├── NpcConfig.ts         # NPC config extractor
+    │   └── ...                  # Other extractors
+    ├── graphics/                # Graphics extraction
+    │   ├── UnpackAnims.ts       # Animation extractor
+    │   └── UnpackModels.ts      # Model extractor
+    └── map/                     # Map data extraction
+        └── Unpack.ts            # Map unpacker
+    ```
+  </Tab>
+</Tabs>
+
+## Data Directory (`/data`)
+
+Runtime data and configuration:
+
+```
+data/
+├── config/                    # Server configuration
+│   ├── private.pem           # RSA private key
+│   └── public.pem            # RSA public key
+├── pack/                     # Packed cache data
+│   ├── client/               # Client cache files
+│   └── server/               # Server cache files
+└── raw/                      # Raw source data
+    └── wordenc              # Word encoding data
+```
+
+## Database Schemas (`/prisma`)
+
+Database definitions and migrations:
+
+<Tabs>
+  <Tab title="Multi-world Schema">
+    **`/prisma/multiworld/`** - Production multi-world database
+    
+    ```
+    multiworld/
+    ├── schema.prisma            # Database schema definition
+    ├── migrations/              # Database migrations
+    │   ├── 20231226044539_initial/
+    │   ├── 20231226074531_newsposts/
+    │   ├── 20240115054529_friendserver/
+    │   └── ...                  # Migration history
+    └── migration_lock.toml      # Migration lock file
+    ```
+  </Tab>
+  
+  <Tab title="Single-world Schema">
+    **`/prisma/singleworld/`** - Development single-world database
+    
+    ```
+    singleworld/
+    ├── schema.prisma            # Simplified schema
+    ├── migrations/              # Simplified migrations
+    └── migration_lock.toml      # Migration lock file
+    ```
+  </Tab>
+</Tabs>
+
+## Configuration Files
+
+### TypeScript Configuration
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022", 
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "#/*": ["./src/*"],
+      "#3rdparty/*": ["./src/3rdparty/*"],
+      "#tools/*": ["./tools/*"]
+    }
+  },
+  "include": ["src/**/*", "tools/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+### Package Scripts
+
+```json
+// package.json scripts
+{
+  "scripts": {
+    "build": "bun run tools/pack/pack.ts",
+    "dev": "bun run --watch src/app.ts", 
+    "start": "bun install && bun run src/app.ts",
+    "setup": "bun run tools/server/setup.ts",
+    "clean": "bun run tools/pack/cleanServer.ts && bun run tools/pack/cleanClient.ts",
+    "db:migrate": "prisma migrate deploy --schema prisma/multiworld/schema.prisma",
+    "lint": "eslint --no-warn-ignored src tools"
+  }
+}
+```
+
+### Import Aliases
+
+The project uses TypeScript path mapping for clean imports:
+
+```typescript
+// Instead of relative paths
+import World from '../../../engine/World.js';
+
+// Use clean aliases  
+import World from '#/engine/World.js';
+import { packClient } from '#tools/pack/pack.js';
+import Isaac from '#3rdparty/isaac/Isaac.js';
+```
+
+## File Naming Conventions
+
+The codebase follows consistent naming conventions:
+
+<AccordionGroup>
+  <Accordion title="TypeScript Files">
+    - **Classes**: PascalCase (`Player.ts`, `GameMap.ts`)
+    - **Utilities**: PascalCase (`Logger.ts`, `Environment.ts`)
+    - **Enums**: PascalCase with Type suffix (`NpcMode.ts`, `ZoneEventType.ts`)
+    - **Interfaces**: PascalCase, often with interface suffix (`ClientMessage.ts`)
+  </Accordion>
+  
+  <Accordion title="Directories">
+    - **Modules**: lowercase (`engine`, `network`, `cache`)
+    - **Submodules**: lowercase (`entity`, `script`, `config`)
+    - **Tool categories**: lowercase (`pack`, `unpack`, `server`)
+  </Accordion>
+  
+  <Accordion title="Configuration">
+    - **Database**: lowercase with underscores (`account_session`)
+    - **Environment**: UPPER_CASE (`NODE_MAX_PLAYERS`)
+    - **Scripts**: lowercase with extensions (`.rs2`, `.cs2`)
+  </Accordion>
+</AccordionGroup>
+
+## Development Workflow
+
+### Adding New Features
+
+When adding new features to the engine:
+
+<Steps>
+  <Step title="Entity Changes">
+    Add new entity types or properties in `/src/engine/entity/`
+  </Step>
+  
+  <Step title="Protocol Updates">
+    Update client/server message handling in `/src/network/`
+  </Step>
+  
+  <Step title="Script Operations">
+    Add new script opcodes in `/src/engine/script/handlers/`
+  </Step>
+  
+  <Step title="Configuration">
+    Define new config types in `/src/cache/config/`
+  </Step>
+  
+  <Step title="Database Changes">
+    Update Prisma schema and create migrations
+  </Step>
+  
+  <Step title="Tools">
+    Add build/pack tools in `/tools/` if needed
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="World Engine" href="/architecture/world-engine" icon="globe">
+    Learn about the core world simulation
+  </Card>
+  <Card title="Game Loop" href="/architecture/game-loop" icon="refresh">
+    Understand tick-based processing
+  </Card>
+  <Card title="Entity System" href="/engine/entities/overview" icon="users">
+    Dive into entity implementations
+  </Card>
+  <Card title="Development Setup" href="/development/setup" icon="code">
+    Set up your development environment
+  </Card>
+</CardGroup>

@@ -1,0 +1,749 @@
+---
+title: World API
+description: Complete API reference for the World class and world management functions
+---
+
+# World API Reference
+
+The `World` class is the central coordinator of the 04Scapes engine, managing the game loop, entity collections, zone system, and all core game functionality. This reference documents all public methods and properties.
+
+## Class Overview
+
+```typescript
+// src/engine/World.ts
+class World {
+    // Constants
+    static readonly PLAYERS: number = Environment.NODE_MAX_PLAYERS;
+    static readonly NPCS: number = Environment.NODE_MAX_NPCS;
+    static readonly TICKRATE: number = 600; // 600ms
+    
+    // Core systems
+    static readonly gameMap: GameMap;
+    static readonly zoneMap: ZoneMap;
+    static readonly invs: Set<Inventory>;
+    
+    // Entity collections
+    static readonly players: PlayerList;
+    static readonly npcs: NpcList;
+    static readonly newPlayers: Set<Player>;
+    
+    // Game state
+    static currentTick: number = 0;
+    static lastTickTime: number = 0;
+    static shutdown: boolean = false;
+    
+    // Performance tracking
+    static readonly cycleStats: number[] = new Array(10).fill(0);
+    static readonly lastCycleStats: number[] = new Array(10).fill(0);
+}
+```
+
+## Core Methods
+
+### World Lifecycle
+
+<Tabs>
+  <Tab title="start()">
+    **Static method to initialize and start the world**
+    
+    ```typescript
+    static async start(): Promise<void>
+    ```
+    
+    **Description:**
+    Initializes all world systems and starts the main game loop.
+    
+    **Example:**
+    ```typescript
+    // Initialize and start the world
+    await World.start();
+    ```
+    
+    **Process:**
+    1. Load configuration cache
+    2. Initialize game map and collision data
+    3. Set up entity collections
+    4. Start friend and login threads
+    5. Begin main game loop
+    
+    **Throws:**
+    - `Error` if cache files are missing or invalid
+    - `Error` if database connection fails
+  </Tab>
+  
+  <Tab title="cycle()">
+    **Main game loop tick processing**
+    
+    ```typescript
+    private static async cycle(): Promise<void>
+    ```
+    
+    **Description:**
+    Processes one game tick, handling all player actions, entity updates, and world state changes.
+    
+    **Process:**
+    1. **Login Phase** - Process new player connections
+    2. **Input Phase** - Handle incoming client messages
+    3. **Movement Phase** - Process entity movement and pathfinding
+    4. **Script Phase** - Execute queued scripts and interactions
+    5. **AI Phase** - Update NPC artificial intelligence
+    6. **Update Phase** - Generate and send client updates
+    7. **Cleanup Phase** - Remove despawned entities and clean up resources
+    
+    **Performance:**
+    - Target: 600ms per tick
+    - Monitored for performance issues
+    - Automatically throttles if processing takes too long
+  </Tab>
+  
+  <Tab title="rebootTimer()">
+    **Set server shutdown timer**
+    
+    ```typescript
+    static rebootTimer(ticks: number): void
+    ```
+    
+    **Parameters:**
+    - `ticks` - Number of ticks until shutdown (0 for immediate)
+    
+    **Example:**
+    ```typescript
+    // Schedule shutdown in 100 ticks (60 seconds)
+    World.rebootTimer(100);
+    
+    // Immediate shutdown
+    World.rebootTimer(0);
+    ```
+    
+    **Behavior:**
+    - Notifies all players of impending restart
+    - Gracefully saves all player data
+    - Closes network connections
+    - Shuts down worker threads
+  </Tab>
+</Tabs>
+
+### Entity Management
+
+<Tabs>
+  <Tab title="addPlayer()">
+    **Add player to the world**
+    
+    ```typescript
+    static addPlayer(player: Player): boolean
+    ```
+    
+    **Parameters:**
+    - `player` - Player instance to add
+    
+    **Returns:**
+    - `boolean` - True if successfully added, false if world is full
+    
+    **Example:**
+    ```typescript
+    const player = new Player();
+    player.username = "TestPlayer";
+    
+    if (World.addPlayer(player)) {
+        console.log("Player added successfully");
+    } else {
+        console.log("World is full");
+    }
+    ```
+    
+    **Process:**
+    1. Find available player slot
+    2. Assign unique player ID (UID)
+    3. Add to appropriate zones
+    4. Initialize player build area
+    5. Send initial world state to client
+  </Tab>
+  
+  <Tab title="removePlayer()">
+    **Remove player from the world**
+    
+    ```typescript
+    static removePlayer(player: Player): void
+    ```
+    
+    **Parameters:**
+    - `player` - Player instance to remove
+    
+    **Example:**
+    ```typescript
+    // Remove player on logout
+    World.removePlayer(player);
+    ```
+    
+    **Process:**
+    1. Save player data to database
+    2. Remove from all zones
+    3. Clean up interactions and scripts
+    4. Free player UID slot
+    5. Close client connection
+  </Tab>
+  
+  <Tab title="addNpc()">
+    **Add NPC to the world**
+    
+    ```typescript
+    static addNpc(npc: Npc): boolean
+    ```
+    
+    **Parameters:**
+    - `npc` - NPC instance to add
+    
+    **Returns:**
+    - `boolean` - True if successfully added
+    
+    **Example:**
+    ```typescript
+    const npc = new Npc(0, 3200, 3200, 1, NpcMode.WANDER);
+    
+    if (World.addNpc(npc)) {
+        console.log("NPC spawned successfully");
+    }
+    ```
+  </Tab>
+  
+  <Tab title="removeNpc()">
+    **Remove NPC from the world**
+    
+    ```typescript
+    static removeNpc(npc: Npc): void
+    ```
+    
+    **Parameters:**
+    - `npc` - NPC instance to remove
+    
+    **Example:**
+    ```typescript
+    // Remove NPC (will respawn if configured)
+    World.removeNpc(npc);
+    ```
+  </Tab>
+</Tabs>
+
+### Zone and Area Management
+
+<Tabs>
+  <Tab title="getZone()">
+    **Get zone at world coordinates**
+    
+    ```typescript
+    static getZone(x: number, z: number, level: number): Zone
+    ```
+    
+    **Parameters:**
+    - `x` - World X coordinate
+    - `z` - World Z coordinate  
+    - `level` - Height level (0-3)
+    
+    **Returns:**
+    - `Zone` - Zone instance (created if doesn't exist)
+    
+    **Example:**
+    ```typescript
+    // Get zone containing Lumbridge castle
+    const zone = World.getZone(3222, 3218, 0);
+    
+    console.log(`Zone has ${zone.players.size} players`);
+    ```
+  </Tab>
+  
+  <Tab title="addObj()">
+    **Add ground object to world**
+    
+    ```typescript
+    static addObj(obj: Obj, receiverId: number, revealCycle: number): void
+    ```
+    
+    **Parameters:**
+    - `obj` - Object to add
+    - `receiverId` - Player ID who can see it (-1 for all)
+    - `revealCycle` - Tick when it becomes visible to all
+    
+    **Example:**
+    ```typescript
+    // Drop coins that only specific player can see initially
+    const coins = new Obj(0, 3222, 3218, 995, 100); // 100 coins
+    World.addObj(coins, player.uid, World.currentTick + 100);
+    ```
+  </Tab>
+  
+  <Tab title="addLoc()">
+    **Add location object to world**
+    
+    ```typescript
+    static addLoc(loc: Loc): void
+    ```
+    
+    **Parameters:**
+    - `loc` - Location object to add
+    
+    **Example:**
+    ```typescript
+    // Add temporary door
+    const door = new Loc(0, 3222, 3218, 1533, 0, 0);
+    door.lifecycle = EntityLifeCycle.TEMPORARY;
+    door.despawnCycle = World.currentTick + 100; // Despawn in 100 ticks
+    
+    World.addLoc(door);
+    ```
+  </Tab>
+</Tabs>
+
+### Messaging and Communication
+
+<Tabs>
+  <Tab title="messageAll()">
+    **Send message to all players**
+    
+    ```typescript
+    static messageAll(message: string): void
+    ```
+    
+    **Parameters:**
+    - `message` - Message text to broadcast
+    
+    **Example:**
+    ```typescript
+    // Server announcement
+    World.messageAll("Server restart in 5 minutes!");
+    ```
+  </Tab>
+  
+  <Tab title="messageStaff()">
+    **Send message to staff members only**
+    
+    ```typescript
+    static messageStaff(message: string, minLevel: number = 1): void
+    ```
+    
+    **Parameters:**
+    - `message` - Message text
+    - `minLevel` - Minimum staff level required to see message
+    
+    **Example:**
+    ```typescript
+    // Message for moderators and above
+    World.messageStaff("Player reported for suspicious activity", 2);
+    ```
+  </Tab>
+  
+  <Tab title="messageMembersOnly()">
+    **Send message to members only**
+    
+    ```typescript
+    static messageMembersOnly(message: string): void
+    ```
+    
+    **Parameters:**
+    - `message` - Message text for members
+    
+    **Example:**
+    ```typescript
+    // Members-only event announcement
+    World.messageMembersOnly("Members-only boss spawning in wilderness!");
+    ```
+  </Tab>
+</Tabs>
+
+## Utility Methods
+
+<Tabs>
+  <Tab title="Lookups and Searches">
+    ```typescript
+    // Find player by username
+    static getPlayerByUsername(username: string): Player | null
+    
+    // Find player by UID
+    static getPlayer(uid: number): Player | null
+    
+    // Find NPC by UID
+    static getNpc(uid: number): Npc | null
+    
+    // Get all players in area
+    static getPlayersInArea(x: number, z: number, level: number, radius: number): Player[]
+    
+    // Get all NPCs in area
+    static getNpcsInArea(x: number, z: number, level: number, radius: number): Npc[]
+    ```
+  </Tab>
+  
+  <Tab title="World State">
+    ```typescript
+    // Get world statistics
+    static getWorldStats(): WorldStats
+    
+    // Check if world is shutting down
+    static isShuttingDown(): boolean
+    
+    // Get current tick
+    static getCurrentTick(): number
+    
+    // Get server uptime in milliseconds
+    static getUptime(): number
+    
+    // Get player count
+    static getPlayerCount(): number
+    
+    // Get NPC count
+    static getNpcCount(): number
+    ```
+  </Tab>
+  
+  <Tab title="Coordinate Utilities">
+    ```typescript
+    // Convert packed coordinate to components
+    static unpackCoord(coord: number): {x: number, z: number, level: number}
+    
+    // Pack coordinate components
+    static packCoord(x: number, z: number, level: number): number
+    
+    // Calculate distance between coordinates
+    static distance(x1: number, z1: number, x2: number, z2: number): number
+    
+    // Check if coordinate is valid
+    static isValidCoord(x: number, z: number, level: number): boolean
+    ```
+  </Tab>
+</Tabs>
+
+## Events and Hooks
+
+The World class supports various event hooks for custom functionality:
+
+<Tabs>
+  <Tab title="Player Events">
+    ```typescript
+    // Player login hook
+    static onPlayerLogin?: (player: Player) => void;
+    
+    // Player logout hook
+    static onPlayerLogout?: (player: Player) => void;
+    
+    // Player death hook
+    static onPlayerDeath?: (player: Player, killer?: PathingEntity) => void;
+    
+    // Player level up hook
+    static onPlayerLevelUp?: (player: Player, skill: number, newLevel: number) => void;
+    
+    // Example usage
+    World.onPlayerLogin = (player) => {
+        console.log(`${player.username} logged in`);
+        World.messageAll(`${player.displayName} has joined the game!`);
+    };
+    ```
+  </Tab>
+  
+  <Tab title="World Events">
+    ```typescript
+    // Tick start hook
+    static onTickStart?: (tick: number) => void;
+    
+    // Tick end hook  
+    static onTickEnd?: (tick: number, duration: number) => void;
+    
+    // Shutdown hook
+    static onShutdown?: () => void;
+    
+    // Example usage
+    World.onTickEnd = (tick, duration) => {
+        if (duration > 100) { // Log slow ticks
+            console.warn(`Slow tick ${tick}: ${duration}ms`);
+        }
+    };
+    ```
+  </Tab>
+</Tabs>
+
+## Performance Monitoring
+
+<Tabs>
+  <Tab title="Statistics">
+    ```typescript
+    interface WorldStats {
+        currentTick: number;
+        uptime: number;
+        playerCount: number;
+        npcCount: number;
+        objCount: number;
+        locCount: number;
+        activeZones: number;
+        totalZones: number;
+        averageTickTime: number;
+        peakTickTime: number;
+        memoryUsage: {
+            used: number;
+            total: number;
+            free: number;
+        };
+    }
+    
+    // Get comprehensive world statistics
+    const stats = World.getWorldStats();
+    console.log(`Server uptime: ${stats.uptime}ms`);
+    console.log(`Players online: ${stats.playerCount}`);
+    console.log(`Average tick time: ${stats.averageTickTime}ms`);
+    ```
+  </Tab>
+  
+  <Tab title="Performance Tracking">
+    ```typescript
+    // Cycle timing constants (indices into cycleStats array)
+    static readonly CYCLE_RESET = 0;
+    static readonly CYCLE_LOGIN = 1;
+    static readonly CYCLE_CLIENT_IN = 2;
+    static readonly CYCLE_NPC = 3;
+    static readonly CYCLE_PLAYER = 4;
+    static readonly CYCLE_WORLD = 5;
+    static readonly CYCLE_ZONE = 6;
+    static readonly CYCLE_CLIENT_OUT = 7;
+    static readonly CYCLE_LOGOUT = 8;
+    static readonly CYCLE_CLEANUP = 9;
+    
+    // Access current cycle statistics
+    const loginTime = World.cycleStats[World.CYCLE_LOGIN];
+    const playerTime = World.cycleStats[World.CYCLE_PLAYER];
+    const totalTime = World.cycleStats.reduce((a, b) => a + b, 0);
+    
+    console.log(`Login processing: ${loginTime}ms`);
+    console.log(`Player processing: ${playerTime}ms`);
+    console.log(`Total cycle time: ${totalTime}ms`);
+    ```
+  </Tab>
+</Tabs>
+
+## Advanced Usage Examples
+
+<Tabs>
+  <Tab title="Custom World Events">
+    ```typescript
+    // Create a custom world event system
+    class CustomWorldEvents {
+        static init() {
+            // Double XP weekend
+            World.onPlayerLevelUp = (player, skill, newLevel) => {
+                if (this.isDoubleXpActive()) {
+                    player.messageGame("Double XP is active - enjoy the bonus!");
+                }
+            };
+            
+            // Welcome message for new players
+            World.onPlayerLogin = (player) => {
+                if (player.totalLevel < 10) {
+                    World.messageAll(`Welcome new player ${player.displayName}!`);
+                    this.giveNewPlayerRewards(player);
+                }
+            };
+            
+            // Server events
+            World.onTickEnd = (tick) => {
+                // Every 10 minutes (1000 ticks)
+                if (tick % 1000 === 0) {
+                    this.runRandomEvent();
+                }
+            };
+        }
+        
+        private static giveNewPlayerRewards(player: Player) {
+            player.giveItem(995, 10000); // 10k coins
+            player.messageGame("You've received a starter bonus!");
+        }
+        
+        private static runRandomEvent() {
+            const events = ['meteor', 'double_drops', 'bonus_xp'];
+            const event = events[Math.floor(Math.random() * events.length)];
+            
+            World.messageAll(`Random event: ${event} is now active for 5 minutes!`);
+        }
+    }
+    
+    // Initialize custom events
+    CustomWorldEvents.init();
+    ```
+  </Tab>
+  
+  <Tab title="Zone Monitoring">
+    ```typescript
+    // Monitor zone activity and performance
+    class ZoneMonitor {
+        private static lastReport = 0;
+        
+        static init() {
+            World.onTickEnd = (tick) => {
+                // Report every 5 minutes
+                if (tick - this.lastReport >= 500) {
+                    this.generateZoneReport();
+                    this.lastReport = tick;
+                }
+            };
+        }
+        
+        private static generateZoneReport() {
+            const activeZones = World.zoneMap.getActiveZones();
+            const hotspots = activeZones
+                .filter(zone => zone.players.size >= 5)
+                .sort((a, b) => b.players.size - a.players.size)
+                .slice(0, 5);
+                
+            console.log('=== Zone Activity Report ===');
+            console.log(`Active zones: ${activeZones.length}`);
+            console.log('Top hotspots:');
+            
+            hotspots.forEach((zone, i) => {
+                console.log(`  ${i + 1}. Zone ${zone.x},${zone.z}: ${zone.players.size} players`);
+            });
+            
+            // Alert if any zone has performance issues
+            const slowZones = activeZones.filter(zone => 
+                zone.updates.length > 100 // Many pending updates
+            );
+            
+            if (slowZones.length > 0) {
+                console.warn(`Performance alert: ${slowZones.length} zones with high update count`);
+            }
+        }
+    }
+    
+    ZoneMonitor.init();
+    ```
+  </Tab>
+  
+  <Tab title="Player Management Tools">
+    ```typescript
+    // Administrative tools for player management
+    class PlayerAdmin {
+        // Kick all players (for server maintenance)
+        static kickAllPlayers(reason: string = "Server maintenance") {
+            for (const player of World.players) {
+                if (!player) continue;
+                
+                player.messageGame(`You have been disconnected: ${reason}`);
+                World.removePlayer(player);
+            }
+        }
+        
+        // Find players by criteria
+        static findPlayers(criteria: {
+            username?: string;
+            minLevel?: number;
+            maxLevel?: number;
+            area?: {x: number, z: number, level: number, radius: number};
+            staff?: boolean;
+        }): Player[] {
+            const results: Player[] = [];
+            
+            for (const player of World.players) {
+                if (!player) continue;
+                
+                // Username filter
+                if (criteria.username && !player.username.toLowerCase().includes(criteria.username.toLowerCase())) {
+                    continue;
+                }
+                
+                // Level filters
+                if (criteria.minLevel && player.combatLevel < criteria.minLevel) {
+                    continue;
+                }
+                if (criteria.maxLevel && player.combatLevel > criteria.maxLevel) {
+                    continue;
+                }
+                
+                // Area filter
+                if (criteria.area) {
+                    const distance = World.distance(
+                        player.x, player.z,
+                        criteria.area.x, criteria.area.z
+                    );
+                    if (distance > criteria.area.radius || player.level !== criteria.area.level) {
+                        continue;
+                    }
+                }
+                
+                // Staff filter
+                if (criteria.staff !== undefined) {
+                    const isStaff = player.staffModLevel > 0;
+                    if (criteria.staff !== isStaff) {
+                        continue;
+                    }
+                }
+                
+                results.push(player);
+            }
+            
+            return results;
+        }
+        
+        // Get server load information
+        static getServerLoad(): {
+            playerLoad: number;  // Percentage of max players
+            npcLoad: number;     // Percentage of max NPCs
+            tickHealth: number;  // Average tick time
+            memoryLoad: number;  // Memory usage percentage
+        } {
+            const stats = World.getWorldStats();
+            
+            return {
+                playerLoad: (stats.playerCount / World.PLAYERS) * 100,
+                npcLoad: (stats.npcCount / World.NPCS) * 100,
+                tickHealth: stats.averageTickTime,
+                memoryLoad: (stats.memoryUsage.used / stats.memoryUsage.total) * 100
+            };
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Error Handling
+
+The World class includes comprehensive error handling:
+
+```typescript
+// Common error scenarios and handling
+try {
+    await World.start();
+} catch (error) {
+    if (error.message.includes('Cache')) {
+        console.error('Cache loading failed. Run cache rebuild.');
+        process.exit(1);
+    } else if (error.message.includes('Database')) {
+        console.error('Database connection failed. Check DATABASE_URL.');
+        process.exit(1);
+    } else {
+        console.error('Unknown startup error:', error);
+        process.exit(1);
+    }
+}
+
+// Safe entity operations
+const player = World.getPlayer(uid);
+if (player) {
+    try {
+        player.processAction();
+    } catch (error) {
+        console.error(`Error processing player ${player.username}:`, error);
+        // Remove problematic player to prevent world corruption
+        World.removePlayer(player);
+    }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Player API" href="/api/player" icon="user">
+    Complete Player class API reference
+  </Card>
+  <Card title="NPC API" href="/api/npc" icon="robot">
+    NPC class methods and properties
+  </Card>
+  <Card title="Script Runner API" href="/api/script-runner" icon="code">
+    ScriptRunner and script execution APIs
+  </Card>
+  <Card title="Inventory API" href="/api/inventory" icon="backpack">
+    Inventory management API reference
+  </Card>
+</CardGroup>

@@ -1,0 +1,924 @@
+---
+title: NPC Entity
+description: Complete guide to NPCs (Non-Player Characters) including AI, behavior, and interaction systems
+---
+
+# NPC Entity
+
+NPCs (Non-Player Characters) are AI-controlled entities that populate the game world. They provide quests, services, combat challenges, and ambiance. The NPC system includes sophisticated AI behaviors, pathfinding, combat mechanics, and interaction handling.
+
+## NPC Class Structure
+
+```typescript
+// src/engine/entity/Npc.ts
+class Npc extends PathingEntity {
+    // Core properties
+    readonly type: number;           // NPC type ID
+    readonly originalType: number;   // Original type (for transformations)
+    
+    // AI state
+    mode: NpcMode = NpcMode.NULL;
+    huntTarget: PathingEntity | null = null;
+    huntMode: HuntModeType = HuntModeType.OFF;
+    
+    // Spawn information
+    readonly startX: number;
+    readonly startZ: number;
+    readonly startLevel: number;
+    
+    // Movement bounds
+    minX: number;
+    maxX: number;
+    minZ: number;
+    maxZ: number;
+    
+    // Combat stats
+    levels: Int32Array = new Int32Array(NpcStat.length);
+    
+    // Interaction state
+    activeScript: ScriptState | null = null;
+    delay: number = 0;
+    
+    // Special states
+    respawnCycle: number = -1;
+    despawnCycle: number = -1;
+    
+    constructor(level: number, x: number, z: number, type: number, mode: NpcMode) {
+        super(level, x, z, EntityLifeCycle.SPAWN);
+        
+        this.type = type;
+        this.originalType = type;
+        this.startX = x;
+        this.startZ = z;
+        this.startLevel = level;
+        
+        this.mode = mode;
+        
+        // Initialize from NPC config
+        this.initializeFromConfig();
+    }
+}
+```
+
+## NPC Configuration System
+
+NPCs are defined through configuration files that specify their properties:
+
+<Tabs>
+  <Tab title="NPC Config">
+    ```typescript
+    // src/cache/config/NpcType.ts
+    class NpcType {
+        id: number = -1;
+        name: string | null = null;
+        description: string | null = null;
+        
+        // 3D models and graphics
+        models: number[] | null = null;
+        heads: number[] | null = null;
+        size: number = 1;
+        
+        // Animations
+        readyanim: number = -1;
+        walkanim: number = -1;
+        walkanimbk: number = -1;
+        walkaniml: number = -1;
+        walkanimr: number = -1;
+        
+        // Colors and appearance
+        recol_s: number[] | null = null;
+        recol_d: number[] | null = null;
+        minimap: boolean = true;
+        vislevel: number = -1;
+        resizeh: number = 128;
+        resizev: number = 128;
+        
+        // Combat properties
+        level: number = -1;
+        hitpoints: number = -1;
+        stats: number[] | null = null;
+        
+        // AI behavior
+        huntmode: HuntModeType = HuntModeType.OFF;
+        huntrange: number = 10;
+        timer: number = -1;
+        
+        // Interaction
+        op: (string | null)[] = new Array(5).fill(null);
+        defaultmode: NpcMode = NpcMode.WANDER;
+        
+        // Special flags
+        blockwalk: boolean = true;
+        active: boolean = true;
+        members: boolean = false;
+    }
+    ```
+  </Tab>
+  
+  <Tab title="NPC Modes">
+    ```typescript
+    // NPC behavior modes
+    enum NpcMode {
+        NULL = 0,           // Inactive
+        WANDER = 1,         // Random movement
+        PATROL = 2,         // Follow waypoints
+        GUARD = 3,          // Stay in area
+        WALK_TO = 4,        // Move to specific location
+        FACE = 5,           // Face specific direction/entity
+        HUNT = 6,           // Actively hunt targets
+        FLEE = 7,           // Run away from threats
+        QUEUE = 8,          // Process action queue
+        SCRIPT = 9,         // Under script control
+        APPLAYER1 = 10,     // Player interaction mode 1
+        APPLAYER2 = 11,     // Player interaction mode 2
+        APPLAYER3 = 12,     // Player interaction mode 3
+        APPLAYER4 = 13,     // Player interaction mode 4
+        APPLAYER5 = 14,     // Player interaction mode 5
+        APNPC1 = 15,        // NPC interaction mode 1
+        APNPC2 = 16,        // NPC interaction mode 2
+        APNPC3 = 17,        // NPC interaction mode 3
+        APNPC4 = 18,        // NPC interaction mode 4
+        APNPC5 = 19,        // NPC interaction mode 5
+        APCOL = 20,         // Collision interaction
+        APOBJ1 = 21,        // Object interaction mode 1
+        APOBJ2 = 22,        // Object interaction mode 2
+        APOBJ3 = 23,        // Object interaction mode 3
+        APOBJ4 = 24,        // Object interaction mode 4
+        APOBJ5 = 25,        // Object interaction mode 5
+        APLOC1 = 26,        // Location interaction mode 1
+        APLOC2 = 27,        // Location interaction mode 2
+        APLOC3 = 28,        // Location interaction mode 3
+        APLOC4 = 29,        // Location interaction mode 4
+        APLOC5 = 30         // Location interaction mode 5
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Hunt Behavior">
+    ```typescript
+    // NPC hunting behavior types
+    enum HuntModeType {
+        OFF = 0,            // No hunting
+        PLAYER = 1,         // Hunt players
+        NPC = 2,            // Hunt other NPCs
+        AGGRESSIVE = 3,     // Attack on sight
+        DEFENSIVE = 4,      // Only fight when attacked
+        RETREAT = 5,        // Run when attacked
+        GUARD = 6          // Protect area/entity
+    }
+    
+    class Npc {
+        // Check for hunt targets
+        checkHuntTargets(): void {
+            if (this.huntMode === HuntModeType.OFF) {
+                return;
+            }
+            
+            const config = NpcType.get(this.type);
+            const huntRange = config.huntrange;
+            
+            // Find potential targets
+            const zone = World.getZone(this.x, this.z, this.level);
+            
+            if (this.huntMode === HuntModeType.PLAYER || this.huntMode === HuntModeType.AGGRESSIVE) {
+                for (const player of zone.players) {
+                    if (this.canHuntTarget(player, huntRange)) {
+                        this.setHuntTarget(player);
+                        return;
+                    }
+                }
+            }
+            
+            if (this.huntMode === HuntModeType.NPC) {
+                for (const npc of zone.npcs) {
+                    if (npc !== this && this.canHuntTarget(npc, huntRange)) {
+                        this.setHuntTarget(npc);
+                        return;
+                    }
+                }
+            }
+        }
+        
+        // Check if can hunt specific target
+        canHuntTarget(target: PathingEntity, range: number): boolean {
+            // Distance check
+            if (this.distanceTo(target) > range) {
+                return false;
+            }
+            
+            // Line of sight check
+            if (!World.gameMap.hasLineOfSight(
+                this.x, this.z, target.x, target.z, this.level
+            )) {
+                return false;
+            }
+            
+            // Level restrictions for players
+            if (target instanceof Player) {
+                const config = NpcType.get(this.type);
+                if (config.level !== -1) {
+                    const levelDiff = Math.abs(target.combatLevel - config.level);
+                    if (levelDiff > 5) { // Wilderness-style level restrictions
+                        return false;
+                    }
+                }
+            }
+            
+            return true;
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## AI Behavior System
+
+NPCs use a sophisticated AI system that processes different behaviors each tick:
+
+```typescript
+class Npc {
+    // Main AI processing method
+    processAI(): void {
+        // Process any active scripts first
+        if (this.activeScript) {
+            if (this.processScript()) {
+                return; // Script took control
+            }
+        }
+        
+        // Handle delay countdown
+        if (this.delay > 0) {
+            this.delay--;
+            return;
+        }
+        
+        // Process based on current mode
+        switch (this.mode) {
+            case NpcMode.WANDER:
+                this.processWander();
+                break;
+            case NpcMode.PATROL:
+                this.processPatrol();
+                break;
+            case NpcMode.GUARD:
+                this.processGuard();
+                break;
+            case NpcMode.HUNT:
+                this.processHunt();
+                break;
+            case NpcMode.FLEE:
+                this.processFlee();
+                break;
+            case NpcMode.QUEUE:
+                this.processQueue();
+                break;
+        }
+        
+        // Check for hunt targets if aggressive
+        if (this.huntMode !== HuntModeType.OFF && !this.huntTarget) {
+            this.checkHuntTargets();
+        }
+    }
+    
+    // Random wandering behavior
+    processWander(): void {
+        // Random chance to move
+        if (Math.random() < 0.1) { // 10% chance per tick
+            const directions = [];
+            
+            // Check all 8 directions
+            for (let dir = 0; dir < 8; dir++) {
+                const deltaX = Movement.WALK_DELTA_X[dir];
+                const deltaZ = Movement.WALK_DELTA_Z[dir];
+                const newX = this.x + deltaX;
+                const newZ = this.z + deltaZ;
+                
+                // Check bounds
+                if (newX < this.minX || newX > this.maxX || 
+                    newZ < this.minZ || newZ > this.maxZ) {
+                    continue;
+                }
+                
+                // Check collision
+                if (World.gameMap.isBlocked(newX, newZ, this.level, this.width, this.length)) {
+                    continue;
+                }
+                
+                directions.push(dir);
+            }
+            
+            // Move in random valid direction
+            if (directions.length > 0) {
+                const randomDir = directions[Math.floor(Math.random() * directions.length)];
+                this.walkDir = randomDir;
+            }
+        }
+        
+        // Random chance to face different direction
+        if (Math.random() < 0.05) { // 5% chance
+            this.faceDirection(Math.floor(Math.random() * 8));
+        }
+    }
+    
+    // Hunt target behavior
+    processHunt(): void {
+        if (!this.huntTarget) {
+            this.mode = NpcMode.WANDER;
+            return;
+        }
+        
+        // Check if target is still valid
+        if (this.huntTarget.lifecycle !== EntityLifeCycle.ACTIVE) {
+            this.huntTarget = null;
+            this.mode = NpcMode.WANDER;
+            return;
+        }
+        
+        const distance = this.distanceTo(this.huntTarget);
+        const config = NpcType.get(this.type);
+        
+        // Too far away - give up chase
+        if (distance > config.huntrange * 2) {
+            this.huntTarget = null;
+            this.mode = NpcMode.WANDER;
+            return;
+        }
+        
+        // In attack range - attack
+        if (distance <= this.getAttackRange()) {
+            this.attack(this.huntTarget);
+            return;
+        }
+        
+        // Move towards target
+        this.walkToTarget(this.huntTarget.x, this.huntTarget.z);
+    }
+    
+    // Walk towards a target location
+    walkToTarget(targetX: number, targetZ: number): void {
+        const path = this.findPath(targetX, targetZ);
+        if (path.length > 0) {
+            this.walkDir = path[0];
+            
+            // Run if far away
+            if (path.length > 3 && path.length > 1) {
+                this.runDir = path[1];
+            }
+        }
+    }
+}
+```
+
+## Combat System
+
+NPCs can engage in combat with players and other NPCs:
+
+<Tabs>
+  <Tab title="Combat Stats">
+    ```typescript
+    // NPC combat statistics
+    enum NpcStat {
+        ATTACK = 0,
+        DEFENCE = 1,
+        STRENGTH = 2,
+        HITPOINTS = 3,
+        RANGED = 4,
+        MAGIC = 5
+    }
+    
+    class Npc {
+        // Initialize combat stats from config
+        initializeCombatStats(): void {
+            const config = NpcType.get(this.type);
+            
+            if (config.stats) {
+                for (let i = 0; i < Math.min(config.stats.length, NpcStat.length); i++) {
+                    this.levels[i] = config.stats[i];
+                }
+            } else {
+                // Default stats based on level
+                const level = config.level || 1;
+                this.levels[NpcStat.ATTACK] = level;
+                this.levels[NpcStat.DEFENCE] = level;
+                this.levels[NpcStat.STRENGTH] = level;
+                this.levels[NpcStat.HITPOINTS] = config.hitpoints || level * 10;
+                this.levels[NpcStat.RANGED] = level;
+                this.levels[NpcStat.MAGIC] = level;
+            }
+        }
+        
+        // Get max hitpoints
+        getMaxHitpoints(): number {
+            return this.levels[NpcStat.HITPOINTS];
+        }
+        
+        // Get current hitpoints
+        getCurrentHitpoints(): number {
+            return this.hitpoints;
+        }
+        
+        // Check if NPC is alive
+        isAlive(): boolean {
+            return this.hitpoints > 0;
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Combat Actions">
+    ```typescript
+    class Npc {
+        // Attack a target
+        attack(target: PathingEntity): void {
+            if (!this.canAttack(target)) {
+                return;
+            }
+            
+            // Face the target
+            this.faceEntity(target);
+            
+            // Calculate damage
+            const damage = this.calculateDamage(target);
+            
+            // Apply damage
+            target.applyDamage(damage, this);
+            
+            // Play attack animation
+            const config = NpcType.get(this.type);
+            if (config.attackAnim !== -1) {
+                this.playAnimation(config.attackAnim);
+            }
+            
+            // Set combat delay
+            this.delay = this.getAttackSpeed();
+            
+            // Trigger combat scripts
+            this.executeScript('npc_combat', target);
+        }
+        
+        // Calculate damage to target
+        calculateDamage(target: PathingEntity): number {
+            const config = NpcType.get(this.type);
+            let maxDamage = Math.floor(this.levels[NpcStat.STRENGTH] * 0.5);
+            
+            // Apply accuracy calculation
+            const accuracy = this.calculateAccuracy(target);
+            if (Math.random() > accuracy) {
+                return 0; // Miss
+            }
+            
+            // Random damage up to max
+            return Math.floor(Math.random() * (maxDamage + 1));
+        }
+        
+        // Calculate attack accuracy
+        calculateAccuracy(target: PathingEntity): number {
+            const attackLevel = this.levels[NpcStat.ATTACK];
+            let defenceLevel = 1;
+            
+            if (target instanceof Player) {
+                defenceLevel = target.levels[PlayerStat.DEFENCE];
+            } else if (target instanceof Npc) {
+                defenceLevel = target.levels[NpcStat.DEFENCE];
+            }
+            
+            // Simple accuracy formula
+            const attackRoll = attackLevel + Math.random() * attackLevel;
+            const defenceRoll = defenceLevel + Math.random() * defenceLevel;
+            
+            return attackRoll > defenceRoll ? 0.9 : 0.1; // 90% hit or 10% hit
+        }
+        
+        // Apply damage from attacker
+        applyDamage(damage: number, attacker: PathingEntity): void {
+            this.hitpoints = Math.max(0, this.hitpoints - damage);
+            
+            // Show damage splat
+            this.spotAnim(85); // Blood splat
+            
+            // Set hunt target if not already fighting
+            if (!this.huntTarget && attacker instanceof Player) {
+                this.setHuntTarget(attacker);
+            }
+            
+            // Check for death
+            if (this.hitpoints <= 0) {
+                this.die(attacker);
+            }
+        }
+        
+        // Handle NPC death
+        die(killer: PathingEntity | null): void {
+            // Play death animation
+            const config = NpcType.get(this.type);
+            if (config.deathAnim !== -1) {
+                this.playAnimation(config.deathAnim);
+            }
+            
+            // Drop items
+            this.dropItems(killer);
+            
+            // Give experience to killer
+            if (killer instanceof Player) {
+                this.giveExperience(killer);
+            }
+            
+            // Set respawn timer
+            this.despawnCycle = World.currentTick + 5; // 3 seconds
+            this.respawnCycle = World.currentTick + 100; // 60 seconds
+            
+            // Remove from world
+            this.lifecycle = EntityLifeCycle.RESPAWN;
+            
+            // Execute death script
+            this.executeScript('npc_death', killer);
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Interaction System
+
+Players can interact with NPCs through various means:
+
+```typescript
+class Npc {
+    // Handle player interaction
+    playerOperate(player: Player, op: number): void {
+        const config = NpcType.get(this.type);
+        
+        // Check interaction option exists
+        if (!config.op[op - 1]) {
+            return;
+        }
+        
+        // Face the player
+        this.faceEntity(player);
+        player.faceEntity(this);
+        
+        // Find and execute script
+        const script = ScriptProvider.getByTrigger(
+            ServerTriggerType.OPNPC, 
+            this.type, 
+            op
+        );
+        
+        if (script) {
+            // Put NPC in interaction mode
+            this.mode = NpcMode.APPLAYER1 + (op - 1);
+            this.delay = 5; // Prevent other actions
+            
+            // Execute script
+            ScriptRunner.init(script, player, this);
+        } else {
+            // Default interaction
+            player.messageGame(`Nothing interesting happens.`);
+        }
+    }
+    
+    // Handle NPC-to-NPC interaction
+    npcOperate(other: Npc, op: number): void {
+        // Similar to player interaction but for NPC-NPC
+        const script = ScriptProvider.getByTrigger(
+            ServerTriggerType.APNPC,
+            other.type,
+            op
+        );
+        
+        if (script) {
+            this.mode = NpcMode.APNPC1 + (op - 1);
+            ScriptRunner.init(script, this, other);
+        }
+    }
+    
+    // Start dialogue with player
+    startDialogue(player: Player, dialogueId: number): void {
+        const dialogue = DialogueType.get(dialogueId);
+        if (!dialogue) {
+            return;
+        }
+        
+        player.activeDialogue = dialogue;
+        player.dialogueNpc = this;
+        
+        // Send dialogue interface
+        player.openDialogue(dialogue);
+        
+        // Face each other
+        this.faceEntity(player);
+        player.faceEntity(this);
+    }
+}
+```
+
+## NPC Spawning and Management
+
+NPCs are spawned through the world management system:
+
+<Tabs>
+  <Tab title="Spawn System">
+    ```typescript
+    class World {
+        // Spawn NPC at location
+        static spawnNpc(type: number, x: number, z: number, level: number, mode: NpcMode = NpcMode.WANDER): Npc {
+            const npc = new Npc(level, x, z, type, mode);
+            
+            // Set spawn bounds
+            const config = NpcType.get(type);
+            const wanderRange = config.wanderRange || 5;
+            
+            npc.minX = x - wanderRange;
+            npc.maxX = x + wanderRange;
+            npc.minZ = z - wanderRange;
+            npc.maxZ = z + wanderRange;
+            
+            // Add to world
+            this.addNpc(npc);
+            
+            return npc;
+        }
+        
+        // Add NPC to world
+        static addNpc(npc: Npc): void {
+            const index = this.npcs.nextAvailableIndex();
+            this.npcs.set(index, npc);
+            npc.uid = index;
+            
+            // Add to zone
+            const zone = this.getZone(npc.x, npc.z, npc.level);
+            zone.enter(npc);
+            
+            // Initialize NPC
+            npc.initializeFromConfig();
+            npc.lifecycle = EntityLifeCycle.ACTIVE;
+            
+            // Execute spawn script
+            npc.executeScript('npc_spawn');
+        }
+        
+        // Remove NPC from world
+        static removeNpc(npc: Npc): void {
+            // Remove from zone
+            const zone = this.getZone(npc.x, npc.z, npc.level);
+            zone.leave(npc);
+            
+            // Remove from world list
+            this.npcs.remove(npc.uid);
+            
+            npc.lifecycle = EntityLifeCycle.DESPAWN;
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Respawn System">
+    ```typescript
+    class World {
+        // Process NPC respawns
+        static processNpcRespawns(): void {
+            for (const npc of this.npcs) {
+                if (!npc) continue;
+                
+                // Handle despawn
+                if (npc.despawnCycle !== -1 && this.currentTick >= npc.despawnCycle) {
+                    npc.despawnCycle = -1;
+                    this.removeNpc(npc);
+                }
+                
+                // Handle respawn
+                if (npc.respawnCycle !== -1 && this.currentTick >= npc.respawnCycle) {
+                    npc.respawnCycle = -1;
+                    
+                    // Respawn at original location
+                    const respawned = new Npc(
+                        npc.startLevel,
+                        npc.startX,
+                        npc.startZ,
+                        npc.originalType,
+                        NpcMode.WANDER
+                    );
+                    
+                    // Copy bounds
+                    respawned.minX = npc.minX;
+                    respawned.maxX = npc.maxX;
+                    respawned.minZ = npc.minZ;
+                    respawned.maxZ = npc.maxZ;
+                    
+                    this.addNpc(respawned);
+                }
+            }
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Special NPC Types
+
+The engine supports various specialized NPC types:
+
+<AccordionGroup>
+  <Accordion title="Shop NPCs">
+    NPCs that provide trading services:
+    
+    ```typescript
+    class Npc {
+        // Open shop interface
+        openShop(player: Player, shopId: number): void {
+            const shop = ShopType.get(shopId);
+            if (!shop) {
+                return;
+            }
+            
+            // Set up shop interface
+            player.activeShop = shop;
+            player.openInterface(SHOP_INTERFACE);
+            
+            // Show shop inventory
+            this.updateShopItems(player, shop);
+        }
+        
+        // Handle shop transactions
+        buyFromShop(player: Player, itemId: number, amount: number): void {
+            const shop = player.activeShop;
+            if (!shop || !shop.hasItem(itemId, amount)) {
+                player.messageGame("The shop doesn't have enough of that item.");
+                return;
+            }
+            
+            const cost = shop.getBuyPrice(itemId) * amount;
+            if (player.getCoins() < cost) {
+                player.messageGame("You don't have enough coins.");
+                return;
+            }
+            
+            // Complete transaction
+            player.removeCoins(cost);
+            player.giveItem(itemId, amount);
+            shop.removeStock(itemId, amount);
+        }
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Guard NPCs">
+    NPCs that protect areas or other NPCs:
+    
+    ```typescript
+    class Npc {
+        // Guard behavior
+        processGuardBehavior(): void {
+            // Check for threats in guard area
+            const zone = World.getZone(this.x, this.z, this.level);
+            
+            for (const player of zone.players) {
+                if (this.isPlayerThreat(player)) {
+                    this.setHuntTarget(player);
+                    this.mode = NpcMode.HUNT;
+                    break;
+                }
+            }
+        }
+        
+        // Check if player is a threat
+        isPlayerThreat(player: Player): boolean {
+            // Check if player is skulled
+            if (player.skull > 0) {
+                return true;
+            }
+            
+            // Check if player attacked friendly NPCs
+            if (player.hasRecentlyAttackedNpc(this.getAllies())) {
+                return true;
+            }
+            
+            return false;
+        }
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Quest NPCs">
+    NPCs involved in quest progression:
+    
+    ```typescript
+    class Npc {
+        // Handle quest-related interactions
+        handleQuestInteraction(player: Player): void {
+            const questStage = player.getQuestStage(this.getQuestId());
+            
+            // Different dialogue based on quest progress
+            switch (questStage) {
+                case 0: // Quest not started
+                    this.startDialogue(player, 'quest_start');
+                    break;
+                case 1: // Quest in progress
+                    this.startDialogue(player, 'quest_progress');
+                    break;
+                case 100: // Quest completed
+                    this.startDialogue(player, 'quest_complete');
+                    break;
+                default:
+                    this.startDialogue(player, 'quest_default');
+            }
+        }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Performance Optimization
+
+The NPC system includes several optimizations:
+
+```typescript
+class World {
+    // Only process NPCs in active zones
+    static processNpcs(): void {
+        for (const zone of this.activeZones) {
+            for (const npc of zone.npcs) {
+                if (npc.lifecycle === EntityLifeCycle.ACTIVE) {
+                    npc.processAI();
+                    npc.processMovement();
+                    npc.processAnimations();
+                }
+            }
+        }
+    }
+    
+    // Batch NPC updates for efficiency
+    static sendNpcUpdates(): void {
+        for (const player of this.players) {
+            if (!player) continue;
+            
+            const updates: NpcUpdate[] = [];
+            const buildArea = player.getBuildArea();
+            
+            for (const npc of buildArea.npcs) {
+                if (npc.hasUpdates()) {
+                    updates.push(npc.generateUpdate());
+                }
+            }
+            
+            if (updates.length > 0) {
+                player.write(new NpcInfo(updates));
+            }
+        }
+    }
+}
+```
+
+## NPC Events and Scripting
+
+NPCs support event-driven scripting:
+
+```typescript
+class Npc {
+    // Execute NPC script
+    executeScript(trigger: string, ...args: any[]): void {
+        const script = ScriptProvider.getByTrigger(
+            ServerTriggerType[trigger.toUpperCase()],
+            this.type
+        );
+        
+        if (script) {
+            ScriptRunner.init(script, this, ...args);
+        }
+    }
+    
+    // Common NPC events
+    onSpawn(): void {
+        this.executeScript('npc_spawn');
+    }
+    
+    onDeath(killer: PathingEntity | null): void {
+        this.executeScript('npc_death', killer);
+    }
+    
+    onCombat(target: PathingEntity): void {
+        this.executeScript('npc_combat', target);
+    }
+    
+    onTalk(player: Player): void {
+        this.executeScript('npc_talk', player);
+    }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Objects & Items" href="/engine/entities/objects" icon="cube">
+    Learn about ground objects and items
+  </Card>
+  <Card title="Locations" href="/engine/entities/locations" icon="map-marker-alt">
+    Explore world object management
+  </Card>
+  <Card title="AI Scripting" href="/scripting/opcodes/npc" icon="robot">
+    Write custom NPC behaviors
+  </Card>
+  <Card title="Combat System" href="/engine/combat/overview" icon="sword">
+    Deep dive into combat mechanics
+  </Card>
+</CardGroup>

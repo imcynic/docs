@@ -1,0 +1,789 @@
+---
+title: Player Entity
+description: Complete guide to the Player entity class and player management system
+---
+
+# Player Entity
+
+The Player entity represents human players connected to the game server. It extends the PathingEntity class and includes networking, persistence, skills, inventory management, and social features.
+
+## Player Class Overview
+
+```typescript
+// src/engine/entity/Player.ts
+class Player extends PathingEntity {
+    // Network connection
+    client: ClientSocket | null = null;
+    
+    // Basic information
+    username: string = '';
+    displayName: string = '';
+    pid: number = -1;
+    
+    // Account data
+    staffModLevel: number = 0;
+    members: boolean = false;
+    
+    // Appearance and graphics
+    body: number[] = new Array(7).fill(0);
+    colors: number[] = new Array(5).fill(0);
+    gender: number = 0;
+    
+    // Skills and experience
+    baseLevels: number[] = new Array(PlayerStat.length).fill(1);
+    levels: number[] = new Array(PlayerStat.length).fill(1);
+    experience: number[] = new Array(PlayerStat.length).fill(0);
+    
+    // Inventories
+    invs: Map<number, Inventory> = new Map();
+    
+    // Combat and health
+    combatLevel: number = 3;
+    hitpoints: number = 100;
+    prayer: boolean = false;
+    
+    // Social features
+    friendsList: Map<string, number> = new Map();
+    ignoreList: Set<string> = new Set();
+    
+    // Interface state
+    modalState: ModalState = ModalState.NONE;
+    modalTop: number = -1;
+    modalBottom: number = -1;
+    modalSidebar: number = -1;
+    refreshModalClose: boolean = false;
+}
+```
+
+## Player Lifecycle
+
+### Connection and Login
+
+Players go through a structured login process:
+
+<Steps>
+  <Step title="TCP Connection">
+    Client establishes TCP connection to game server
+    
+    ```typescript
+    // Server accepts connection
+    const socket = server.accept();
+    const client = new TcpClientSocket(socket);
+    ```
+  </Step>
+  
+  <Step title="Protocol Handshake">
+    Client and server negotiate protocol version
+    
+    ```typescript
+    // Client sends login request
+    const loginRequest = client.readLoginRequest();
+    
+    // Server validates protocol version
+    if (loginRequest.revision !== 244) {
+        client.send(LoginResponse.CLIENT_OUT_OF_DATE);
+        return;
+    }
+    ```
+  </Step>
+  
+  <Step title="Authentication">
+    Server validates username/password with login service
+    
+    ```typescript
+    // Send to login server for validation
+    const loginResponse = await LoginServer.authenticate(
+        loginRequest.username, 
+        loginRequest.password
+    );
+    
+    if (loginResponse.success) {
+        // Create player session
+        const player = new Player();
+        player.username = loginRequest.username;
+        player.client = client;
+    }
+    ```
+  </Step>
+  
+  <Step title="World Entry">
+    Player is added to the game world
+    
+    ```typescript
+    // Load player save data
+    await player.load();
+    
+    // Add to world
+    World.addPlayer(player);
+    
+    // Send initial game state
+    player.rebuildNormal();
+    ```
+  </Step>
+</Steps>
+
+### Save and Load System
+
+Player data is persisted to the database:
+
+```typescript
+class Player {
+    // Save player data
+    async save(): Promise<Uint8Array> {
+        const saveData = new Packet();
+        
+        // Basic info
+        saveData.p2(this.x);
+        saveData.p2(this.z);
+        saveData.p1(this.level);
+        
+        // Appearance
+        for (let i = 0; i < 7; i++) {
+            saveData.p1(this.body[i]);
+        }
+        for (let i = 0; i < 5; i++) {
+            saveData.p1(this.colors[i]);
+        }
+        
+        // Skills
+        for (let i = 0; i < PlayerStat.length; i++) {
+            saveData.p1(this.baseLevels[i]);
+            saveData.p4(this.experience[i]);
+        }
+        
+        // Inventories
+        this.saveInventories(saveData);
+        
+        return saveData.data;
+    }
+    
+    // Load player data
+    async load(): Promise<void> {
+        const saveData = await Database.getPlayerSave(this.username);
+        if (!saveData) {
+            this.initializeNewPlayer();
+            return;
+        }
+        
+        const packet = new Packet(saveData);
+        
+        // Basic info
+        this.x = packet.g2();
+        this.z = packet.g2();
+        this.level = packet.g1();
+        
+        // Appearance
+        for (let i = 0; i < 7; i++) {
+            this.body[i] = packet.g1();
+        }
+        for (let i = 0; i < 5; i++) {
+            this.colors[i] = packet.g1();
+        }
+        
+        // Skills
+        for (let i = 0; i < PlayerStat.length; i++) {
+            this.baseLevels[i] = packet.g1();
+            this.experience[i] = packet.g4();
+            this.levels[i] = this.baseLevels[i]; // Apply boosts later
+        }
+        
+        // Inventories
+        this.loadInventories(packet);
+    }
+}
+```
+
+## Skills System
+
+Players have 23 different skills with levels and experience:
+
+```typescript
+enum PlayerStat {
+    ATTACK = 0,
+    DEFENCE = 1,
+    STRENGTH = 2,
+    HITPOINTS = 3,
+    RANGED = 4,
+    PRAYER = 5,
+    MAGIC = 6,
+    COOKING = 7,
+    WOODCUTTING = 8,
+    FLETCHING = 9,
+    FISHING = 10,
+    FIREMAKING = 11,
+    CRAFTING = 12,
+    SMITHING = 13,
+    MINING = 14,
+    HERBLORE = 15,
+    AGILITY = 16,
+    THIEVING = 17,
+    SLAYER = 18,
+    FARMING = 19,
+    RUNECRAFT = 20,
+    HUNTER = 21,
+    CONSTRUCTION = 22
+}
+
+class Player {
+    // Add experience to a skill
+    addXp(stat: PlayerStat, xp: number): void {
+        const oldXp = this.experience[stat];
+        const newXp = Math.min(oldXp + xp, 200_000_000); // Max XP
+        
+        if (newXp === oldXp) return;
+        
+        this.experience[stat] = newXp;
+        
+        // Check for level up
+        const oldLevel = this.baseLevels[stat];
+        const newLevel = this.getLevelFromXp(newXp);
+        
+        if (newLevel > oldLevel) {
+            this.baseLevels[stat] = newLevel;
+            this.levels[stat] = newLevel;
+            this.onLevelUp(stat, newLevel);
+        }
+        
+        // Update client
+        this.write(new UpdateStat(stat, this.levels[stat], this.experience[stat]));
+    }
+    
+    // Calculate level from experience
+    getLevelFromXp(xp: number): number {
+        let level = 1;
+        let totalXp = 0;
+        
+        for (level = 1; level < 99; level++) {
+            const xpForLevel = Math.floor(level + 300 * Math.pow(2, level / 7));
+            totalXp += Math.floor(xpForLevel / 4);
+            
+            if (totalXp > xp) {
+                return level;
+            }
+        }
+        
+        return 99;
+    }
+    
+    // Handle level up
+    private onLevelUp(stat: PlayerStat, newLevel: number): void {
+        this.messageGame(`Congratulations! You have reached level ${newLevel} ${PlayerStat[stat].toLowerCase()}!`);
+        
+        // Play level up animation/sound
+        this.spotAnim(199); // Level up graphics
+        this.playSound(15); // Level up sound
+        
+        // Update combat level if needed
+        if ([PlayerStat.ATTACK, PlayerStat.DEFENCE, PlayerStat.STRENGTH, 
+             PlayerStat.HITPOINTS, PlayerStat.RANGED, PlayerStat.PRAYER, 
+             PlayerStat.MAGIC].includes(stat)) {
+            this.updateCombatLevel();
+        }
+    }
+}
+```
+
+## Inventory Management
+
+Players have multiple inventories for different purposes:
+
+<Tabs>
+  <Tab title="Inventory Types">
+    ```typescript
+    // Standard inventory IDs
+    enum InvType {
+        INV = 0,          // Main inventory (28 slots)
+        WORN = 1,         // Equipment (14 slots)
+        BANK = 2,         // Bank storage (hundreds of slots)
+        TRADE = 3,        // Trade interface
+        SHOP = 4,         // Shop interface
+        // ... more inventory types
+    }
+    
+    class Player {
+        // Get inventory by type
+        getInventory(type: InvType): Inventory | null {
+            return this.invs.get(type) || null;
+        }
+        
+        // Initialize inventories
+        private initInventories(): void {
+            // Main inventory
+            this.invs.set(InvType.INV, new Inventory(28));
+            
+            // Equipment
+            this.invs.set(InvType.WORN, new Inventory(14));
+            
+            // Bank (dynamic size)
+            this.invs.set(InvType.BANK, new Inventory(400));
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Inventory Operations">
+    ```typescript
+    class Player {
+        // Add item to inventory
+        giveItem(id: number, count: number): boolean {
+            const inv = this.getInventory(InvType.INV);
+            if (!inv || !inv.hasSpace(id, count)) {
+                this.messageGame("Not enough space in your inventory.");
+                return false;
+            }
+            
+            inv.add(id, count);
+            this.updateInvFull(InvType.INV);
+            return true;
+        }
+        
+        // Remove item from inventory
+        takeItem(id: number, count: number): boolean {
+            const inv = this.getInventory(InvType.INV);
+            if (!inv || inv.getItemCount(id) < count) {
+                this.messageGame("You don't have enough of that item.");
+                return false;
+            }
+            
+            inv.remove(id, count);
+            this.updateInvFull(InvType.INV);
+            return true;
+        }
+        
+        // Move item between inventories
+        moveItem(fromInv: InvType, toInv: InvType, slot: number, count: number): void {
+            const from = this.getInventory(fromInv);
+            const to = this.getInventory(toInv);
+            
+            if (!from || !to) return;
+            
+            const item = from.items[slot];
+            if (!item || item.count < count) return;
+            
+            // Check if destination has space
+            if (!to.hasSpace(item.id, count)) {
+                this.messageGame("Not enough space.");
+                return;
+            }
+            
+            // Perform the move
+            from.remove(item.id, count, slot);
+            to.add(item.id, count);
+            
+            // Update clients
+            this.updateInvPartial(fromInv, slot);
+            this.updateInvFull(toInv);
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Combat System
+
+Players can engage in combat with NPCs and other players:
+
+```typescript
+class Player {
+    // Combat stats
+    attackLevel: number = 1;
+    defenceLevel: number = 1;
+    strengthLevel: number = 1;
+    hitpointsLevel: number = 10;
+    rangedLevel: number = 1;
+    prayerLevel: number = 1;
+    magicLevel: number = 1;
+    
+    // Combat state
+    combatTarget: PathingEntity | null = null;
+    lastCombatCycle: number = 0;
+    combatDelay: number = 0;
+    
+    // Calculate combat level
+    updateCombatLevel(): void {
+        const attack = this.baseLevels[PlayerStat.ATTACK];
+        const defence = this.baseLevels[PlayerStat.DEFENCE];
+        const strength = this.baseLevels[PlayerStat.STRENGTH];
+        const hitpoints = this.baseLevels[PlayerStat.HITPOINTS];
+        const ranged = this.baseLevels[PlayerStat.RANGED];
+        const prayer = this.baseLevels[PlayerStat.PRAYER];
+        const magic = this.baseLevels[PlayerStat.MAGIC];
+        
+        const base = 0.25 * (defence + hitpoints + Math.floor(prayer / 2));
+        const melee = 0.325 * (attack + strength);
+        const ranger = 0.325 * (Math.floor(ranged * 1.5));
+        const mage = 0.325 * (Math.floor(magic * 1.5));
+        
+        this.combatLevel = Math.floor(base + Math.max(melee, Math.max(ranger, mage)));
+        
+        // Update appearance (combat level affects player options)
+        this.generateAppearance();
+    }
+    
+    // Attack another entity
+    attack(target: PathingEntity): void {
+        if (!this.canAttack(target)) {
+            return;
+        }
+        
+        this.combatTarget = target;
+        this.lastCombatCycle = World.currentTick;
+        
+        // Face target
+        this.faceEntity(target);
+        
+        // Calculate damage and apply
+        const damage = this.calculateDamage(target);
+        target.applyDamage(damage, this);
+        
+        // Play attack animation
+        this.playAnimation(this.getAttackAnimation());
+        
+        // Set combat delay
+        this.combatDelay = this.getAttackSpeed();
+    }
+    
+    // Check if can attack target
+    canAttack(target: PathingEntity): boolean {
+        // Distance check
+        if (this.distanceTo(target) > this.getAttackRange()) {
+            return false;
+        }
+        
+        // Line of sight check
+        if (!World.gameMap.hasLineOfSight(
+            this.x, this.z, target.x, target.z, this.level
+        )) {
+            return false;
+        }
+        
+        // Combat delay check
+        if (this.combatDelay > 0) {
+            return false;
+        }
+        
+        return true;
+    }
+}
+```
+
+## Social Features
+
+Players can interact socially through friends lists and messaging:
+
+<Tabs>
+  <Tab title="Friends System">
+    ```typescript
+    class Player {
+        friendsList: Map<string, number> = new Map();
+        ignoreList: Set<string> = new Set();
+        
+        // Add friend
+        addFriend(username: string): void {
+            const normalized = toSafeName(username);
+            
+            if (this.friendsList.has(normalized)) {
+                this.messageGame("They are already on your friends list.");
+                return;
+            }
+            
+            if (this.friendsList.size >= 200) {
+                this.messageGame("Your friends list is full.");
+                return;
+            }
+            
+            this.friendsList.set(normalized, 0); // 0 = offline
+            
+            // Request friend status from friend server
+            World.friendThread.postMessage({
+                type: 'friend_add',
+                player: this.username,
+                friend: normalized
+            });
+            
+            // Update client
+            this.updateFriendsList();
+        }
+        
+        // Remove friend
+        deleteFriend(username: string): void {
+            const normalized = toSafeName(username);
+            
+            if (!this.friendsList.has(normalized)) {
+                this.messageGame("They are not on your friends list.");
+                return;
+            }
+            
+            this.friendsList.delete(normalized);
+            
+            // Update client
+            this.updateFriendsList();
+        }
+        
+        // Send private message
+        sendPrivateMessage(username: string, message: string): void {
+            const normalized = toSafeName(username);
+            
+            // Check if ignored
+            if (this.ignoreList.has(normalized)) {
+                this.messageGame("You have ignored that player.");
+                return;
+            }
+            
+            // Send through friend server
+            World.friendThread.postMessage({
+                type: 'private_message',
+                from: this.username,
+                to: normalized,
+                message: message
+            });
+        }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Chat System">
+    ```typescript
+    class Player {
+        // Chat modes
+        publicChatMode: number = 0;  // 0=on, 1=friends, 2=off
+        privateChatMode: number = 0;
+        tradeChatMode: number = 0;
+        
+        // Send public chat
+        say(message: string): void {
+            if (this.publicChatMode === 2) {
+                return; // Chat disabled
+            }
+            
+            // Filter message
+            const filtered = WordEnc.filter(message);
+            
+            // Add to zone updates
+            const zone = World.getZone(this.x, this.z, this.level);
+            zone.players.forEach(player => {
+                if (player === this) return;
+                
+                // Check if player can see this message
+                if (this.publicChatMode === 1 && !player.friendsList.has(toSafeName(this.username))) {
+                    return; // Friends only
+                }
+                
+                // Send message
+                player.messagePublic(this, filtered);
+            });
+        }
+        
+        // Receive public message
+        messagePublic(from: Player, message: string): void {
+            this.write(new MessagePublic(from.pid, message, from.combatLevel));
+        }
+        
+        // Send game message
+        messageGame(message: string): void {
+            this.write(new MessageGame(message, 0));
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Interface System
+
+Players interact with the game through various interfaces:
+
+```typescript
+enum ModalState {
+    NONE = 0,
+    INTERFACE_MAIN = 1,
+    INTERFACE_SIDE = 2,
+    INTERFACE_MAIN_SIDE = 3,
+    INTERFACE_CHAT = 4
+}
+
+class Player {
+    modalState: ModalState = ModalState.NONE;
+    modalTop: number = -1;
+    modalBottom: number = -1;
+    modalSidebar: number = -1;
+    
+    // Open main interface
+    openMainInterface(component: number): void {
+        this.closeModal();
+        this.modalTop = component;
+        this.modalState = ModalState.INTERFACE_MAIN;
+        this.write(new IfOpenMain(component));
+    }
+    
+    // Open sidebar interface
+    openSideInterface(component: number): void {
+        this.modalSidebar = component;
+        if (this.modalState === ModalState.INTERFACE_MAIN) {
+            this.modalState = ModalState.INTERFACE_MAIN_SIDE;
+        } else {
+            this.modalState = ModalState.INTERFACE_SIDE;
+        }
+        this.write(new IfOpenSide(component));
+    }
+    
+    // Close all interfaces
+    closeModal(): void {
+        if (this.modalState !== ModalState.NONE) {
+            this.modalState = ModalState.NONE;
+            this.modalTop = -1;
+            this.modalBottom = -1;
+            this.modalSidebar = -1;
+            this.write(new IfClose());
+        }
+    }
+    
+    // Handle interface button click
+    handleIfButton(component: number, option: number): void {
+        // Find and execute interface script
+        const script = ScriptProvider.getByTrigger(ServerTriggerType.IF_BUTTON, component, option);
+        if (script) {
+            ScriptRunner.init(script, this);
+        }
+    }
+}
+```
+
+## Player Updates and Networking
+
+The player system handles efficient network updates:
+
+```typescript
+class Player {
+    // Generate player appearance data
+    generateAppearance(): Packet {
+        const appearance = new Packet();
+        
+        appearance.p1(this.gender); // Gender
+        appearance.p1(-1); // Skull icon
+        appearance.p1(-1); // Prayer icon
+        
+        // Equipment or body parts
+        for (let i = 0; i < 12; i++) {
+            const equipment = this.getEquipmentInSlot(i);
+            if (equipment) {
+                appearance.p2(0x8000 | equipment.id);
+            } else {
+                const bodyPart = this.getBodyPartForSlot(i);
+                if (bodyPart !== -1) {
+                    appearance.p2(0x100 | bodyPart);
+                }
+            }
+        }
+        
+        // Colors
+        for (let i = 0; i < 5; i++) {
+            appearance.p1(this.colors[i]);
+        }
+        
+        // Animations
+        appearance.p2(this.basReadyAnim);
+        appearance.p2(this.basTurnAnim);
+        appearance.p2(this.basWalkAnim);
+        appearance.p2(this.basTurn180Anim);
+        appearance.p2(this.basTurn90CwAnim);
+        appearance.p2(this.basTurn90CcwAnim);
+        appearance.p2(this.basRunAnim);
+        
+        // Name and combat level
+        appearance.p8(toBase37(this.displayName));
+        appearance.p1(this.combatLevel);
+        appearance.p1(0); // Skill level (unused)
+        
+        return appearance;
+    }
+    
+    // Check if player needs updates
+    hasUpdates(): boolean {
+        return this.mask !== 0 || this.walkDir !== -1 || this.runDir !== -1;
+    }
+    
+    // Send all pending updates to client
+    flush(): void {
+        if (this.client && this.client.hasOut()) {
+            this.client.flush();
+        }
+    }
+}
+```
+
+## Player Events and Hooks
+
+The system supports various player events:
+
+```typescript
+enum PlayerEventType {
+    LOGIN = 'login',
+    LOGOUT = 'logout',
+    DEATH = 'death',
+    LEVEL_UP = 'level_up',
+    COMBAT_START = 'combat_start',
+    COMBAT_END = 'combat_end',
+    TRADE_START = 'trade_start',
+    TRADE_COMPLETE = 'trade_complete'
+}
+
+class Player {
+    // Emit player event
+    emitEvent(type: PlayerEventType, data?: any): void {
+        const event = {
+            type,
+            player: this,
+            data,
+            timestamp: Date.now()
+        };
+        
+        World.playerEventSystem.emit(event);
+        
+        // Log important events
+        if ([PlayerEventType.LOGIN, PlayerEventType.LOGOUT, PlayerEventType.DEATH].includes(type)) {
+            World.loggerThread.postMessage({
+                type: 'player_event',
+                event
+            });
+        }
+    }
+    
+    // Handle logout
+    logout(): void {
+        this.emitEvent(PlayerEventType.LOGOUT);
+        
+        // Save player data
+        this.save();
+        
+        // Clean up
+        this.closeModal();
+        this.combatTarget = null;
+        
+        // Remove from world
+        World.removePlayer(this);
+        
+        // Close connection
+        if (this.client) {
+            this.client.close();
+            this.client = null;
+        }
+    }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="NPC Entity" href="/engine/entities/npc" icon="robot">
+    Learn about NPC implementation and AI
+  </Card>
+  <Card title="Inventory System" href="/engine/inventory/overview" icon="backpack">
+    Deep dive into inventory management
+  </Card>
+  <Card title="Combat System" href="/engine/combat/overview" icon="sword">
+    Explore combat mechanics
+  </Card>
+  <Card title="Scripting" href="/scripting/overview" icon="code">
+    Learn to write player interactions
+  </Card>
+</CardGroup>
